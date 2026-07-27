@@ -54,9 +54,15 @@ jobs:
         run: |
           ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
             ${{ secrets.DO_USER }}@${{ secrets.DO_HOST }} \
-            "mkdir -p ~/nvrcms/bin ~/nvrcms/migrations ~/nvrcms/scripts ~/nvrcms/uploads ~/nvrcms/logs ~/nvrcms/frontend"
+            "mkdir -p ~/nvrcms/bin ~/nvrcms/migrations ~/nvrcms/scripts ~/nvrcms/uploads ~/nvrcms/logs ~/nvrcms/frontend ~/nvrcms/datasets"
 
       # ── Copy Artifacts ─────────────────────────────────────────────────────
+      - name: Stop API service before deploy
+        run: |
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
+            ${{ secrets.DO_USER }}@${{ secrets.DO_HOST }} \
+            "sudo systemctl stop nvrcms-api || true"
+
       - name: Copy API binary
         run: |
           chmod +x bin/nvrcms-api
@@ -70,6 +76,12 @@ jobs:
             frontend/dist/. \
             ${{ secrets.DO_USER }}@${{ secrets.DO_HOST }}:~/nvrcms/frontend/
 
+      - name: Copy datasets
+        run: |
+          scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -r \
+            datasets/. \
+            ${{ secrets.DO_USER }}@${{ secrets.DO_HOST }}:~/nvrcms/datasets/
+
       - name: Copy migration files
         run: |
           scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -r \
@@ -81,6 +93,12 @@ jobs:
           scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
             scripts/migrate.sh scripts/seed.sql \
             ${{ secrets.DO_USER }}@${{ secrets.DO_HOST }}:~/nvrcms/scripts/
+
+      - name: Copy datasets
+        run: |
+          scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -r \
+            datasets/. \
+            ${{ secrets.DO_USER }}@${{ secrets.DO_HOST }}:~/nvrcms/datasets/
 
       # ── Deploy ─────────────────────────────────────────────────────────────
       - name: Run migrations and restart service
