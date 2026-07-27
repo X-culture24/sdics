@@ -69,6 +69,9 @@ jobs:
 
       - name: Copy frontend build
         run: |
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
+            ${{ secrets.DO_USER }}@${{ secrets.DO_HOST }} \
+            "rm -rf ~/nvrcms/frontend/* && mkdir -p ~/nvrcms/frontend"
           scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -r \
             frontend/dist/. \
             ${{ secrets.DO_USER }}@${{ secrets.DO_HOST }}:~/nvrcms/frontend/
