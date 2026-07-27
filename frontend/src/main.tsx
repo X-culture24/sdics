@@ -4,8 +4,6 @@ import { BrowserRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { ThemeProvider, CssBaseline } from '@mui/material';
-import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
-import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { buildTheme } from '@/theme';
 import { AppRoutes } from '@/routes';
@@ -40,13 +38,11 @@ const Root: React.FC = () => {
   return (
     <QueryClientProvider client={queryClient}>
       <ReactQueryDevtools initialIsOpen={false} />
-      <LocalizationProvider dateAdapter={AdapterDayjs}>
-        <BrowserRouter>
-          <AuthProvider>
-            <ThemedApp />
-          </AuthProvider>
-        </BrowserRouter>
-      </LocalizationProvider>
+      <BrowserRouter>
+        <AuthProvider>
+          <ThemedApp />
+        </AuthProvider>
+      </BrowserRouter>
     </QueryClientProvider>
   );
 };
