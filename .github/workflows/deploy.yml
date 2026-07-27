@@ -57,7 +57,7 @@ jobs:
             ${{ secrets.DO_USER }}@${{ secrets.DO_HOST }} "
               mkdir -p ~/nvrcms/bin ~/nvrcms/migrations ~/nvrcms/scripts \
                        ~/nvrcms/uploads ~/nvrcms/logs ~/nvrcms/frontend ~/nvrcms/datasets
-              sudo systemctl stop nvrcms-api || true
+              sudo -n systemctl stop nvrcms-api || true
               rm -f ~/nvrcms/bin/nvrcms-api
             "
 
@@ -108,10 +108,10 @@ jobs:
               chmod o+x ~/nvrcms
               chmod -R o+rx ~/nvrcms/frontend
               bash ~/nvrcms/scripts/migrate.sh
-              sudo bash ~/nvrcms/scripts/configure-nginx.sh
-              sudo systemctl restart nvrcms-api
+              sudo -n bash ~/nvrcms/scripts/configure-nginx.sh || echo 'Nginx config update requires manual sudo'
+              sudo -n systemctl restart nvrcms-api
               sleep 2
-              sudo systemctl status nvrcms-api --no-pager
+              sudo -n systemctl status nvrcms-api --no-pager
               echo '✅ Deploy complete'
             "
 # Deployment fix - Tue Jul 28 12:51:37 AM EAT 2026
