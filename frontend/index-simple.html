@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NVRCMS — National Voter Registration Campaign Management System</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f5; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        nav { background: #0a2540; color: white; padding: 1rem 2rem; }
+        nav h1 { font-size: 1.5rem; margin-bottom: 0.5rem; }
+        nav p { opacity: 0.9; font-size: 0.9rem; }
+        main { padding: 2rem; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1.5rem; margin-top: 2rem; }
+        .card { background: white; padding: 1.5rem; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .card h3 { color: #0a2540; margin-bottom: 0.5rem; }
+        .card p { color: #666; font-size: 0.9rem; line-height: 1.6; }
+        .stat-value { font-size: 2rem; font-weight: bold; color: #0a2540; margin: 1rem 0; }
+        .stat-label { color: #999; font-size: 0.85rem; text-transform: uppercase; }
+        .loading { text-align: center; padding: 2rem; }
+        .spinner { border: 3px solid #f3f3f3; border-top: 3px solid #0a2540; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 0 auto; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .error { background: #fee; color: #c33; padding: 1rem; border-radius: 4px; margin: 1rem 0; }
+        .success { background: #efe; color: #3c3; padding: 1rem; border-radius: 4px; margin: 1rem 0; }
+        button { background: #0a2540; color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #0a1f2e; }
+    </style>
+</head>
+<body>
+    <nav class="container">
+        <h1>NVRCMS</h1>
+        <p>National Voter Registration Campaign Management System</p>
+    </nav>
+    <main class="container">
+        <h2>Dashboard</h2>
+        <div id="content" class="loading">
+            <div class="spinner"></div>
+            <p style="margin-top: 1rem;">Loading...</p>
+        </div>
+    </main>
+    <script>
+        async function init() {
+            try {
+                const res = await fetch('/api/v1/me');
+                if (!res.ok) throw new Error(`API error: ${res.status}`);
+                const user = await res.json();
+                
+                // Fetch dashboard data
+                const dashRes = await fetch('/api/v1/dashboard');
+                if (!dashRes.ok) throw new Error('Dashboard load failed');
+                const dash = await dashRes.json();
+                
+                document.getElementById('content').innerHTML = `
+                    <div class="success">Welcome back, ${user.full_name}!</div>
+                    <div class="grid">
+                        <div class="card">
+                            <div class="stat-label">Total Citizens</div>
+                            <div class="stat-value">${dash.total_citizens || 0}</div>
+                        </div>
+                        <div class="card">
+                            <div class="stat-label">Registered Voters</div>
+                            <div class="stat-value">${dash.registered_voters || 0}</div>
+                        </div>
+                        <div class="card">
+                            <div class="stat-label">Registration Rate</div>
+                            <div class="stat-value">${(dash.registration_rate || 0).toFixed(1)}%</div>
+                        </div>
+                        <div class="card">
+                            <div class="stat-label">Active Campaigns</div>
+                            <div class="stat-value">${dash.active_campaigns || 0}</div>
+                        </div>
+                    </div>
+                `;
+            } catch (err) {
+                document.getElementById('content').innerHTML = `
+                    <div class="error">Error loading dashboard: ${err.message}</div>
+                    <p style="margin-top: 1rem; color: #666;">Please check that the API is running and you are logged in.</p>
+                `;
+            }
+        }
+        init();
+    </script>
+</body>
+</html>

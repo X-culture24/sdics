@@ -109,6 +109,22 @@ func main() {
 		c.Redirect(http.StatusFound, "/swagger/index.html")
 	})
 
+	// Serve static frontend files
+	r.Static("/js", "./frontend/js")
+	r.Static("/styles", "./frontend/styles")
+	r.StaticFile("/index.html", "./frontend/index.html")
+
+	// SPA routing - serve index.html for unknown routes
+	r.NoRoute(func(c *gin.Context) {
+		if strings.HasPrefix(c.Request.URL.Path, "/api/") {
+			// Let API 404s through
+			c.JSON(404, gin.H{"error": "endpoint not found"})
+		} else {
+			// Serve SPA
+			c.File("./frontend/index.html")
+		}
+	})
+
 	// Health check
 	r.GET("/health", func(c *gin.Context) {
 		sqlDB, _ := db.DB()
