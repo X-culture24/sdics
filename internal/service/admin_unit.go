@@ -25,6 +25,10 @@ func NewAdminUnitService(db *gorm.DB) *AdminUnitService {
 	return &AdminUnitService{db: db}
 }
 
+func (s *AdminUnitService) DB() *gorm.DB {
+	return s.db
+}
+
 // Create creates a new administrative unit with validation
 func (s *AdminUnitService) Create(unit *model.AdminUnit) error {
 	// Level 1 (National) must have no parent

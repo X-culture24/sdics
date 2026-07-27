@@ -1,17 +1,25 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"strings"
 	"time"
 
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+	_ "github.com/sdic/nvrcms/docs"
 	"github.com/sdic/nvrcms/internal/config"
 	"github.com/sdic/nvrcms/internal/handler"
 	"github.com/sdic/nvrcms/internal/middleware"
+	"github.com/sdic/nvrcms/internal/model"
 	"github.com/sdic/nvrcms/internal/repository"
 	"github.com/sdic/nvrcms/internal/service"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 )
 
 func main() {
@@ -23,18 +31,85 @@ func main() {
 
 	db := repository.NewDB(cfg)
 
+	if cfg.UploadDir != "" {
+		_ = os.MkdirAll(cfg.UploadDir, 0755)
+	}
+	_ = os.MkdirAll("./datasets", 0755)
+
 	// Services
 	authSvc := service.NewAuthService(db, cfg)
+	adminUnitSvc := service.NewAdminUnitService(db)
+	userSvc := service.NewUserService(db, authSvc, adminUnitSvc)
+	campaignSvc := service.NewCampaignService(db)
+	citizenSvc := service.NewCitizenService(db, adminUnitSvc, campaignSvc)
+	dashboardSvc := service.NewDashboardService(db, adminUnitSvc, campaignSvc)
+	importSvc := service.NewImportService(db, cfg, adminUnitSvc, citizenSvc)
+
+	// The supplied Excel files are the initial citizen data source. On a new
+	// seeded installation, start one background import; existing databases are
+	// left untouched and can still use the Import page on demand.
+	go func() {
+		var citizenCount, existingDatasetJobs int64
+		if db.Model(&model.Citizen{}).Count(&citizenCount).Error != nil || citizenCount > 0 {
+			return
+		}
+		if db.Model(&model.ImportJob{}).
+			Where("filename LIKE ? AND status IN ?", "datasets/%", []string{service.ImportStatusPending, service.ImportStatusRunning}).
+			Count(&existingDatasetJobs).Error != nil || existingDatasetJobs > 0 {
+			return
+		}
+
+		var administrator model.User
+		if err := db.Where("is_active = ?", true).Order("created_at ASC").First(&administrator).Error; err != nil {
+			log.Printf("Dataset import skipped: no active administrator is available: %v", err)
+			return
+		}
+		if _, err := importSvc.StartFromDatasets(context.Background(), administrator.ID); err != nil {
+			log.Printf("Dataset import could not start: %v", err)
+			return
+		}
+		log.Println("Started first-run citizen dataset import")
+	}()
+	auditSvc := service.NewAuditLogService(db)
+	reportSvc := service.NewReportService(db)
 
 	// Handlers
 	authHandler := handler.NewAuthHandler(authSvc)
+	adminUnitHandler := handler.NewAdminUnitHandler(adminUnitSvc)
+	userHandler := handler.NewUserHandler(userSvc)
+	campaignHandler := handler.NewCampaignHandler(campaignSvc)
+	citizenHandler := handler.NewCitizenHandler(citizenSvc)
+	dashboardHandler := handler.NewDashboardHandler(dashboardSvc)
+	importHandler := handler.NewImportHandler(importSvc, cfg.UploadDir, cfg.MaxUploadMB)
+	auditHandler := handler.NewAuditLogHandler(auditSvc)
+	reportHandler := handler.NewReportHandler(reportSvc)
 
 	r := gin.Default()
 
-	// ── Global middleware ─────────────────────────────────────
+	// CORS
+	origins := strings.Split(cfg.AllowedOrigins, ",")
+	for i, o := range origins {
+		origins[i] = strings.TrimSpace(o)
+	}
+	r.Use(cors.New(cors.Config{
+		AllowOrigins:     origins,
+		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization"},
+		ExposeHeaders:    []string{"Content-Length", "Content-Disposition"},
+		AllowCredentials: true,
+		MaxAge:           12 * time.Hour,
+	}))
+
+	// Global middleware
 	r.Use(middleware.RateLimit(cfg.RateLimitUnauth, cfg.RateLimitAuth))
 
-	// ── Health check ──────────────────────────────────────────
+	// Swagger
+	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+	r.GET("/", func(c *gin.Context) {
+		c.Redirect(http.StatusFound, "/swagger/index.html")
+	})
+
+	// Health check
 	r.GET("/health", func(c *gin.Context) {
 		sqlDB, _ := db.DB()
 		dbStatus := "connected"
@@ -50,7 +125,7 @@ func main() {
 		})
 	})
 
-	// ── API v1 ────────────────────────────────────────────────
+	// API v1
 	v1 := r.Group("/api/v1")
 
 	// Auth routes (public)
@@ -61,14 +136,112 @@ func main() {
 		auth.POST("/logout", middleware.RequireAuth(authSvc), authHandler.Logout)
 	}
 
-	// Protected ping (for testing auth middleware)
-	v1.GET("/ping", middleware.RequireAuth(authSvc), middleware.SessionTimeout(30), func(c *gin.Context) {
+	// Protected routes with session timeout
+	protected := v1.Group("/")
+	protected.Use(middleware.RequireAuth(authSvc))
+	protected.Use(middleware.SessionTimeout(30))
+
+	// Ping (auth test)
+	protected.GET("ping", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
 			"message": "NVRCMS API is running",
 			"user":    c.GetString(middleware.CtxEmail),
 			"role":    c.GetString(middleware.CtxRoleName),
 		})
 	})
+
+	// Profile / Me
+	protected.GET("me", userHandler.Me)
+	protected.PUT("me/password", userHandler.ChangePassword)
+
+	// Admin Units
+	adminUnits := protected.Group("admin-units")
+	adminUnits.Use(middleware.ScopeToAdminUnit(adminUnitSvc))
+	{
+		adminUnits.GET("", middleware.RequirePermission("admin_units:read", adminUnitSvc), adminUnitHandler.List)
+		adminUnits.POST("", middleware.RequirePermission("admin_units:write", adminUnitSvc), adminUnitHandler.Create)
+		adminUnits.GET(":id", middleware.RequirePermission("admin_units:read", adminUnitSvc), adminUnitHandler.GetByID)
+		adminUnits.PUT(":id", middleware.RequirePermission("admin_units:write", adminUnitSvc), adminUnitHandler.Update)
+		adminUnits.DELETE(":id", middleware.RequirePermission("admin_units:write", adminUnitSvc), adminUnitHandler.Delete)
+		adminUnits.GET(":id/descendants", middleware.RequirePermission("admin_units:read", adminUnitSvc), adminUnitHandler.GetDescendants)
+	}
+
+	// Roles
+	protected.GET("roles", middleware.RequirePermission("users:read", adminUnitSvc), userHandler.ListRoles)
+
+	// Users
+	users := protected.Group("users")
+	users.Use(middleware.ScopeToAdminUnit(adminUnitSvc))
+	{
+		users.GET("", middleware.RequirePermission("users:read", adminUnitSvc), userHandler.List)
+		users.POST("", middleware.RequirePermission("users:write", adminUnitSvc), userHandler.Create)
+		users.GET(":id", middleware.RequirePermission("users:read", adminUnitSvc), userHandler.GetByID)
+		users.PUT(":id", middleware.RequirePermission("users:write", adminUnitSvc), userHandler.Update)
+		users.PATCH(":id/active", middleware.RequirePermission("users:write", adminUnitSvc), userHandler.SetActive)
+		users.POST(":id/reset-password", middleware.RequirePermission("users:write", adminUnitSvc), userHandler.ResetPassword)
+	}
+
+	// Campaigns
+	campaigns := protected.Group("campaigns")
+	{
+		campaigns.GET("", middleware.RequirePermission("campaigns:read", adminUnitSvc), campaignHandler.List)
+		campaigns.POST("", middleware.RequirePermission("campaigns:write", adminUnitSvc), campaignHandler.Create)
+		campaigns.GET(":id", middleware.RequirePermission("campaigns:read", adminUnitSvc), campaignHandler.GetByID)
+		campaigns.PUT(":id", middleware.RequirePermission("campaigns:write", adminUnitSvc), campaignHandler.Update)
+		campaigns.PATCH(":id/status", middleware.RequirePermission("campaigns:write", adminUnitSvc), campaignHandler.ChangeStatus)
+		campaigns.DELETE(":id", middleware.RequirePermission("campaigns:write", adminUnitSvc), campaignHandler.Delete)
+		campaigns.GET(":id/stats", middleware.RequirePermission("campaigns:read", adminUnitSvc), campaignHandler.GetStats)
+	}
+
+	// Citizens
+	citizens := protected.Group("citizens")
+	citizens.Use(middleware.ScopeToAdminUnit(adminUnitSvc))
+	{
+		citizens.GET("", middleware.RequirePermission("citizens:read", adminUnitSvc), citizenHandler.List)
+		citizens.GET("stats", middleware.RequirePermission("citizens:read", adminUnitSvc), citizenHandler.GetStats)
+		citizens.POST("", middleware.RequirePermission("citizens:write", adminUnitSvc), citizenHandler.Create)
+		citizens.GET(":id", middleware.RequirePermission("citizens:read", adminUnitSvc), citizenHandler.GetByID)
+		citizens.GET("nid/:nid", middleware.RequirePermission("citizens:read", adminUnitSvc), citizenHandler.GetByNationalID)
+		citizens.PUT(":id", middleware.RequirePermission("citizens:write", adminUnitSvc), citizenHandler.Update)
+		citizens.DELETE(":id", middleware.RequirePermission("citizens:write", adminUnitSvc), citizenHandler.Delete)
+		citizens.POST(":id/register", middleware.RequirePermission("citizens:register", adminUnitSvc), citizenHandler.Register)
+	}
+
+	// Dashboard
+	dash := protected.Group("dashboard")
+	dash.Use(middleware.ScopeToAdminUnit(adminUnitSvc))
+	{
+		dash.GET("kpis", middleware.RequirePermission("citizens:read", adminUnitSvc), dashboardHandler.GetKPIs)
+		dash.GET("district-performance", middleware.RequirePermission("citizens:read", adminUnitSvc), dashboardHandler.DistrictPerformance)
+		dash.GET("registration-trend", middleware.RequirePermission("citizens:read", adminUnitSvc), dashboardHandler.RegistrationTrend)
+		dash.GET("performance-table", middleware.RequirePermission("citizens:read", adminUnitSvc), dashboardHandler.PerformanceTable)
+	}
+
+	// Imports
+	imports := protected.Group("imports")
+	{
+		imports.POST("from-datasets", middleware.RequirePermission("citizens:write", adminUnitSvc), importHandler.StartFromDatasets)
+		imports.POST("upload", middleware.RequirePermission("citizens:write", adminUnitSvc), importHandler.UploadFile)
+		imports.GET("", middleware.RequirePermission("citizens:read", adminUnitSvc), importHandler.ListJobs)
+		imports.GET(":id", middleware.RequirePermission("citizens:read", adminUnitSvc), importHandler.GetJob)
+	}
+
+	// Audit Logs
+	auditLogs := protected.Group("audit-logs")
+	{
+		auditLogs.GET("", middleware.RequirePermission("users:read", adminUnitSvc), auditHandler.List)
+		auditLogs.POST("", auditHandler.LogEvent)
+		auditLogs.GET(":id", middleware.RequirePermission("users:read", adminUnitSvc), auditHandler.GetByID)
+	}
+
+	// Reports
+	reports := protected.Group("reports")
+	reports.Use(middleware.ScopeToAdminUnit(adminUnitSvc))
+	{
+		reports.GET("citizens", middleware.RequirePermission("citizens:read", adminUnitSvc), reportHandler.ExportCitizens)
+		reports.GET("performance", middleware.RequirePermission("citizens:read", adminUnitSvc), reportHandler.PerformanceReport)
+		reports.GET("campaigns/:campaign_id", middleware.RequirePermission("campaigns:read", adminUnitSvc), reportHandler.CampaignReport)
+	}
 
 	fmt.Printf("NVRCMS API starting on port %s (env: %s)\n", cfg.Port, cfg.Env)
 	if err := r.Run(":" + cfg.Port); err != nil {
