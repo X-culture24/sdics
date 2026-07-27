@@ -112,3 +112,4 @@ jobs:
               sudo systemctl status nvrcms-api --no-pager
               echo '✅ Deploy complete'
             "
+# Deployment fix - Tue Jul 28 12:51:37 AM EAT 2026
