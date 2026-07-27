@@ -54,15 +54,16 @@ jobs:
       - name: Copy scripts
         run: |
           scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
-            scripts/migrate.sh \
-            ${{ secrets.DO_USER }}@${{ secrets.DO_HOST }}:~/nvrcms/scripts/migrate.sh
+            scripts/migrate.sh scripts/seed.sql \
+            ${{ secrets.DO_USER }}@${{ secrets.DO_HOST }}:~/nvrcms/scripts/
 
-      - name: Restart API service
+      - name: Run migrations and restart service
         run: |
           ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
             ${{ secrets.DO_USER }}@${{ secrets.DO_HOST }} "
               chmod +x ~/nvrcms/bin/nvrcms-api
               chmod +x ~/nvrcms/scripts/migrate.sh
+              bash ~/nvrcms/scripts/migrate.sh
               sudo systemctl restart nvrcms-api
               sleep 2
               sudo systemctl status nvrcms-api --no-pager
