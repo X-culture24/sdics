@@ -39,5 +39,9 @@
     "typescript": "^5.5.3",
     "vite": "^5.3.4",
     "vite-plugin-pwa": "^0.20.0"
+  },
+  "overrides": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
   }
 }
