@@ -100,3 +100,7 @@ function getValidationErrors(error) {
     }
     return errors;
 }
+
+// Export for ES6 modules
+export default client;
+export { getErrorMessage, getValidationErrors };
