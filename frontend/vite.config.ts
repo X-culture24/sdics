@@ -1,7 +1,6 @@
 import path from 'node:path';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
-import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig({
   resolve: {
@@ -17,27 +16,6 @@ export default defineConfig({
   },
   plugins: [
     react(),
-    VitePWA({
-      registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'robots.txt'],
-      manifest: {
-        name: 'NVRCMS',
-        short_name: 'NVRCMS',
-        description: 'National Voter Registration Campaign Management System',
-        theme_color: '#0a2540',
-        background_color: '#f5f7fa',
-        display: 'standalone',
-        start_url: '/',
-        icons: [
-          { src: '/pwa-192x192.png', sizes: '192x192', type: 'image/png' },
-          { src: '/pwa-512x512.png', sizes: '512x512', type: 'image/png' },
-        ],
-      },
-      workbox: {
-        globPatterns: ['**/*.{css,html,ico,png,svg,woff2}'],
-        runtimeCaching: [],
-      },
-    }),
   ],
   server: {
     port: 5173,
