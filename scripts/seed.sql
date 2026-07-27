@@ -164,7 +164,7 @@ INSERT INTO users (id, full_name, email, password_hash, role_id, admin_unit_id) 
   '30000000-0000-0000-0000-000000000001',
   'System Administrator',
   'admin@sdics.tech',
-  '$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQyCZy2/sDSwMx5iBpXGGkloq',
+  '$2a$12$i5qTD/C7EZ3a6vwvT1EuzOIy89N.5GZKZYsPrq6flSvaTN3/ZpP7e',
   '00000000-0000-0000-0000-000000000001',
   '20000000-0000-0000-0000-000000000001'
 ) ON CONFLICT (email) DO NOTHING;
