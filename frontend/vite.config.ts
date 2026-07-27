@@ -4,19 +4,18 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig({
   resolve: {
-    dedupe: ['react', 'react-dom', 'react/jsx-runtime', 'react/jsx-dev-runtime'],
     alias: {
       '@': path.resolve(__dirname, 'src'),
-      // Force all packages to use the same React instance
-      'react': path.resolve(__dirname, 'node_modules/react'),
-      'react-dom': path.resolve(__dirname, 'node_modules/react-dom'),
-      'react/jsx-runtime': path.resolve(__dirname, 'node_modules/react/jsx-runtime'),
-      'react/jsx-dev-runtime': path.resolve(__dirname, 'node_modules/react/jsx-dev-runtime'),
     },
   },
   plugins: [
-    react(),
+    react({
+      jsxRuntime: 'automatic',
+    }),
   ],
+  optimizeDeps: {
+    include: ['react', 'react-dom', '@mui/material', '@mui/icons-material'],
+  },
   server: {
     port: 5173,
     host: true,
