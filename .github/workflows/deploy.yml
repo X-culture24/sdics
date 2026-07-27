@@ -55,14 +55,10 @@ jobs:
         run: |
           ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
             ${{ secrets.DO_USER }}@${{ secrets.DO_HOST }} "
-              mkdir -p /home/lawrence/nvrcms/bin \
-                       /home/lawrence/nvrcms/migrations \
-                       /home/lawrence/nvrcms/scripts \
-                       /home/lawrence/nvrcms/uploads \
-                       /home/lawrence/nvrcms/logs \
-                       /home/lawrence/nvrcms/frontend \
-                       /home/lawrence/nvrcms/datasets
+              mkdir -p ~/nvrcms/bin ~/nvrcms/migrations ~/nvrcms/scripts \
+                       ~/nvrcms/uploads ~/nvrcms/logs ~/nvrcms/frontend ~/nvrcms/datasets
               sudo systemctl stop nvrcms-api || true
+              rm -f ~/nvrcms/bin/nvrcms-api
             "
 
       # ── Copy Artifacts ─────────────────────────────────────────────────────
@@ -71,44 +67,43 @@ jobs:
           chmod +x bin/nvrcms-api
           scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
             bin/nvrcms-api \
-            ${{ secrets.DO_USER }}@${{ secrets.DO_HOST }}:/home/lawrence/nvrcms/bin/nvrcms-api
+            ${{ secrets.DO_USER }}@${{ secrets.DO_HOST }}:~/nvrcms/bin/nvrcms-api
 
       - name: Copy frontend build
         run: |
           scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -r \
             frontend/dist/. \
-            ${{ secrets.DO_USER }}@${{ secrets.DO_HOST }}:/home/lawrence/nvrcms/frontend/
+            ${{ secrets.DO_USER }}@${{ secrets.DO_HOST }}:~/nvrcms/frontend/
 
       - name: Copy datasets
         run: |
           scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -r \
             datasets/. \
-            ${{ secrets.DO_USER }}@${{ secrets.DO_HOST }}:/home/lawrence/nvrcms/datasets/
+            ${{ secrets.DO_USER }}@${{ secrets.DO_HOST }}:~/nvrcms/datasets/
 
       - name: Copy migration files
         run: |
           scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -r \
             migrations/. \
-            ${{ secrets.DO_USER }}@${{ secrets.DO_HOST }}:/home/lawrence/nvrcms/migrations/
+            ${{ secrets.DO_USER }}@${{ secrets.DO_HOST }}:~/nvrcms/migrations/
 
       - name: Copy scripts
         run: |
           scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
             scripts/migrate.sh scripts/seed.sql \
-            ${{ secrets.DO_USER }}@${{ secrets.DO_HOST }}:/home/lawrence/nvrcms/scripts/
+            ${{ secrets.DO_USER }}@${{ secrets.DO_HOST }}:~/nvrcms/scripts/
 
       # ── Deploy ─────────────────────────────────────────────────────────────
       - name: Run migrations and restart service
         run: |
           ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
             ${{ secrets.DO_USER }}@${{ secrets.DO_HOST }} "
-              chmod +x /home/lawrence/nvrcms/bin/nvrcms-api
-              chmod +x /home/lawrence/nvrcms/scripts/migrate.sh
-              chmod o+x /home/lawrence
-              chmod o+x /home/lawrence/nvrcms
-              chmod -R o+rx /home/lawrence/nvrcms/frontend
-              chown -R lawrence:lawrence /home/lawrence/nvrcms
-              bash /home/lawrence/nvrcms/scripts/migrate.sh
+              chmod +x ~/nvrcms/bin/nvrcms-api
+              chmod +x ~/nvrcms/scripts/migrate.sh
+              chmod o+x ~
+              chmod o+x ~/nvrcms
+              chmod -R o+rx ~/nvrcms/frontend
+              bash ~/nvrcms/scripts/migrate.sh
               sudo systemctl restart nvrcms-api
               sleep 2
               sudo systemctl status nvrcms-api --no-pager
