@@ -7,10 +7,12 @@ import { dashboardService } from '../api/dashboard.js';
 import { formatNumber, formatPercentage, getPerformanceStatus } from '../utils/formatter.js';
 import { getErrorMessage } from '../api/client.js';
 
+let charts = {};
+
 export async function initDashboardPage() {
     const container = document.getElementById('pageContainer');
     
-    // Simple fallback dashboard that won't crash
+    // Set initial HTML
     container.innerHTML = `
         <div class="container-fluid">
             <div class="page-header mb-5">
@@ -18,81 +20,14 @@ export async function initDashboardPage() {
                 <p class="text-muted">Campaign Performance Overview</p>
             </div>
             
-            <div class="row mb-4">
-                <div class="col-lg-3 col-md-6 mb-3">
-                    <div class="card">
-                        <div class="card-body">
-                            <h6 class="card-title text-muted">Total Citizens</h6>
-                            <h3 class="mb-0" id="totalCitizens">-</h3>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-lg-3 col-md-6 mb-3">
-                    <div class="card">
-                        <div class="card-body">
-                            <h6 class="card-title text-muted">Registered</h6>
-                            <h3 class="mb-0" id="registeredCount">-</h3>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-lg-3 col-md-6 mb-3">
-                    <div class="card">
-                        <div class="card-body">
-                            <h6 class="card-title text-muted">Unregistered</h6>
-                            <h3 class="mb-0" id="unregisteredCount">-</h3>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-lg-3 col-md-6 mb-3">
-                    <div class="card">
-                        <div class="card-body">
-                            <h6 class="card-title text-muted">Campaigns</h6>
-                            <h3 class="mb-0" id="campaignCount">-</h3>
-                        </div>
+            <div class="row mb-4" id="kpiRow">
+                <div class="col-12">
+                    <div class="spinner-border" role="status">
+                        <span class="visually-hidden">Loading...</span>
                     </div>
                 </div>
             </div>
             
-            <div class="row mb-4">
-                <div class="col-12">
-                    <div class="card">
-                        <div class="card-header">
-                            <h5 class="card-title mb-0">Quick Stats</h5>
-                        </div>
-                        <div class="card-body">
-                            <p class="text-muted">Dashboard is loading. Please refresh if you don't see data.</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    `;
-
-    // Try to load data but don't crash if it fails
-    try {
-        const kpis = await dashboardService.getKPIs().catch(err => {
-            console.warn('Could not load KPIs:', err);
-            return {};
-        });
-        
-        // Update cards with data if available
-        if (kpis.data) {
-            const stats = kpis.data;
-            document.getElementById('totalCitizens').textContent = formatNumber(stats.total_citizens || 0);
-            document.getElementById('registeredCount').textContent = formatNumber(stats.registered || 0);
-            document.getElementById('unregisteredCount').textContent = formatNumber(stats.unregistered || 0);
-            document.getElementById('campaignCount').textContent = formatNumber(stats.campaigns || 0);
-        }
-    } catch (error) {
-        console.error('Dashboard error:', error);
-        // Don't crash - just show empty dashboard
-    }
-}
-                    </div>
-                </div>
-            </div>
-
-            <!-- Charts Row -->
             <div class="row mb-4">
                 <div class="col-lg-6">
                     <div class="card">
@@ -116,7 +51,6 @@ export async function initDashboardPage() {
                 </div>
             </div>
 
-            <!-- District Performance -->
             <div class="row mb-4">
                 <div class="col-12">
                     <div class="card">
@@ -130,7 +64,6 @@ export async function initDashboardPage() {
                 </div>
             </div>
 
-            <!-- Performance Table -->
             <div class="row">
                 <div class="col-12">
                     <div class="card">
@@ -184,6 +117,7 @@ export async function initDashboardPage() {
         renderDistrictChart(district);
         renderPerformanceTable(table);
     } catch (error) {
+        console.error('Dashboard error:', error);
         container.innerHTML = `
             <div class="alert alert-danger" role="alert">
                 <i class="bi bi-exclamation-circle"></i> Error loading dashboard: ${getErrorMessage(error)}
@@ -194,6 +128,8 @@ export async function initDashboardPage() {
 
 function renderKPIs(data) {
     const row = document.getElementById('kpiRow');
+    if (!row) return;
+    
     if (!data || typeof data !== 'object') {
         row.innerHTML = '<div class="col-12"><div class="alert alert-warning">No KPI data available</div></div>';
         return;
@@ -201,15 +137,10 @@ function renderKPIs(data) {
 
     const kpiList = Array.isArray(data) ? data : Object.entries(data).map(([key, value]) => ({ label: key, value }));
 
-    const html = kpiList.slice(0, 5).map(kpi => `
-        <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
-            <div class="kpi-card">
-                <div class="kpi-label">${kpi.label}</div>
-                <div class="kpi-value">${formatNumber(kpi.value)}</div>
-                <div class="kpi-subtitle">${kpi.subtitle || ''}</div>
-            </div>
-        </div>
-    `).join('');
+    const html = kpiList.slice(0, 5).map(kpi => {
+        const html = `<div class="col-lg-2 col-md-4 col-sm-6 mb-3"><div class="card"><div class="card-body"><h6 class="card-title text-muted">${kpi.label}</h6><h3 class="mb-0">${formatNumber(kpi.value)}</h3></div></div></div>`;
+        return html;
+    }).join('');
 
     row.innerHTML = html;
 }
@@ -326,6 +257,8 @@ function renderDistrictChart(data) {
 
 function renderPerformanceTable(data) {
     const tbody = document.getElementById('performanceTableBody');
+    if (!tbody) return;
+    
     if (!Array.isArray(data) || data.length === 0) {
         tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">No data available</td></tr>';
         return;
@@ -335,25 +268,23 @@ function renderPerformanceTable(data) {
         const progress = row.progress || 0;
         const status = getPerformanceStatus(progress);
         
-        return `
-            <tr>
-                <td><strong>${row.name || row.district || '-'}</strong></td>
-                <td>${formatNumber(row.adult_population || 0)}</td>
-                <td><span class="badge bg-success">${formatNumber(row.registered || 0)}</span></td>
-                <td><span class="badge bg-warning">${formatNumber(row.unregistered || 0)}</span></td>
-                <td>${formatNumber(row.target || 0)}</td>
-                <td>
-                    <div class="progress" style="height: 20px; width: 100px;">
-                        <div class="progress-bar" role="progressbar" style="width: ${Math.min(progress, 100)}%; background-color: ${
-                            progress >= 80 ? '#16a34a' :
-                            progress >= 50 ? '#2563eb' :
-                            progress >= 25 ? '#f59e0b' : '#dc2626'
-                        };" aria-valuenow="${progress}" aria-valuemin="0" aria-valuemax="100"></div>
-                    </div>
-                    <small>${formatPercentage(progress, 0)}</small>
-                </td>
-                <td><span class="badge bg-secondary">${status.text}</span></td>
-            </tr>
-        `;
+        let bgColor = '#dc2626';
+        if (progress >= 80) bgColor = '#16a34a';
+        else if (progress >= 50) bgColor = '#2563eb';
+        else if (progress >= 25) bgColor = '#f59e0b';
+        
+        const progressWidth = Math.min(progress, 100);
+        const progressText = formatPercentage(progress, 0);
+        const progressBar = `<div class="progress-bar" role="progressbar" style="width: ${progressWidth}%; background-color: ${bgColor};" aria-valuenow="${progress}" aria-valuemin="0" aria-valuemax="100"></div>`;
+        
+        return `<tr>
+<td><strong>${row.name || row.district || '-'}</strong></td>
+<td>${formatNumber(row.adult_population || 0)}</td>
+<td><span class="badge bg-success">${formatNumber(row.registered || 0)}</span></td>
+<td><span class="badge bg-warning">${formatNumber(row.unregistered || 0)}</span></td>
+<td>${formatNumber(row.target || 0)}</td>
+<td><div class="progress" style="height: 20px; width: 100px;">` + progressBar + `</div><small>` + progressText + `</small></td>
+<td><span class="badge bg-secondary">${status.text}</span></td>
+</tr>`;
     }).join('');
 }
