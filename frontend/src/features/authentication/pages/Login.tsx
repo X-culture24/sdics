@@ -193,14 +193,8 @@ export default function Login() {
             borderTop: '1px solid #E5E7EB',
             textAlign: 'center'
           }}>
-            <Typography variant="caption" sx={{ color: '#6B7280', display: 'block', mb: 1 }}>
-              Demo Credentials:
-            </Typography>
-            <Typography variant="caption" sx={{ fontFamily: 'monospace', color: '#374151', display: 'block', mb: 0.5 }}>
-              Email: admin@sdics.tech
-            </Typography>
-            <Typography variant="caption" sx={{ fontFamily: 'monospace', color: '#374151' }}>
-              Password: Admin@123456
+            <Typography variant="caption" sx={{ color: '#6B7280', display: 'block' }}>
+              © 2026 Strategic Digital Identification & Campaign System
             </Typography>
           </Box>
         </Box>

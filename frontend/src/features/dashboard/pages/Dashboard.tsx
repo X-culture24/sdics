@@ -1,4 +1,4 @@
-import { Box, Grid, Card, Typography, CircularProgress, Button, Alert } from '@mui/material';
+import { Box, Grid, Card, Typography, CircularProgress, Button } from '@mui/material';
 import { useQuery } from '@tanstack/react-query';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { dashboardService } from '@/services/api/dashboardService';
@@ -6,7 +6,7 @@ import dayjs from 'dayjs';
 
 function KPICard({ label, value, suffix = '' }: { label: string; value: number | string; suffix?: string }) {
   return (
-    <Card sx={{ p: 3, textAlign: 'center', backgroundColor: '#fff' }}>
+    <Card sx={{ p: 3, textAlign: 'center' }}>
       <Typography variant="body2" sx={{ color: '#6B7280', mb: 1 }}>
         {label}
       </Typography>
@@ -18,40 +18,19 @@ function KPICard({ label, value, suffix = '' }: { label: string; value: number |
 }
 
 export default function Dashboard() {
-  const { data: kpis, isLoading: kpisLoading, error: kpisError, refetch: refetchKPIs } = useQuery({
+  const { data: kpis, isLoading: kpisLoading, refetch: refetchKPIs } = useQuery({
     queryKey: ['dashboard-kpis'],
-    queryFn: async () => {
-      try {
-        return await dashboardService.getKPIs();
-      } catch (err) {
-        console.error('Error fetching KPIs:', err);
-        throw err;
-      }
-    },
+    queryFn: () => dashboardService.getKPIs(),
   });
 
-  const { data: districtData, isLoading: districtLoading, error: districtError } = useQuery({
+  const { data: districtData, isLoading: districtLoading } = useQuery({
     queryKey: ['dashboard-districts'],
-    queryFn: async () => {
-      try {
-        return await dashboardService.getDistrictPerformance();
-      } catch (err) {
-        console.error('Error fetching district data:', err);
-        throw err;
-      }
-    },
+    queryFn: () => dashboardService.getDistrictPerformance(),
   });
 
-  const { data: trends, isLoading: trendsLoading, error: trendsError } = useQuery({
+  const { data: trends, isLoading: trendsLoading } = useQuery({
     queryKey: ['dashboard-trends'],
-    queryFn: async () => {
-      try {
-        return await dashboardService.getRegistrationTrend(undefined, 30);
-      } catch (err) {
-        console.error('Error fetching trends:', err);
-        throw err;
-      }
-    },
+    queryFn: () => dashboardService.getRegistrationTrend(undefined, 30),
   });
 
   if (kpisLoading) {
@@ -62,47 +41,32 @@ export default function Dashboard() {
     );
   }
 
-  if (kpisError || !kpis) {
-    return (
-      <Box sx={{ p: 3 }}>
-        <Alert severity="error" sx={{ mb: 2 }}>
-          Error loading dashboard data. Please try again.
-        </Alert>
-        <Button variant="contained" onClick={() => refetchKPIs()}>
-          Retry
-        </Button>
-      </Box>
-    );
-  }
-
   const remaining = kpis?.initialNidCount ? kpis.initialNidCount - kpis.registeredCount : 0;
   const progressPercent = kpis ? (kpis.registeredCount / kpis.initialNidCount) * 100 : 0;
   
-  let statusColor = '#DC2626';
+  let statusColor = '#DC2626'; // Red < 50%
   let statusLabel = 'Behind';
   if (progressPercent >= 80) {
-    statusColor = '#16A34A';
+    statusColor = '#16A34A'; // Green >= 80%
     statusLabel = 'On Track';
   } else if (progressPercent >= 50) {
-    statusColor = '#F59E0B';
+    statusColor = '#F59E0B'; // Amber 50-80%
     statusLabel = 'At Risk';
   }
 
   return (
     <Box>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
-        <Typography variant="h2" sx={{ fontSize: '2rem', fontWeight: 700 }}>
-          Executive Dashboard
-        </Typography>
+        <Typography variant="h2">Executive Dashboard</Typography>
         <Button variant="contained" onClick={() => refetchKPIs()}>
           Refresh
         </Button>
       </Box>
 
-      {/* KPIs Row */}
+      {/* KPIs Row 1 */}
       <Grid container spacing={2} sx={{ mb: 4 }}>
         <Grid item xs={12} sm={6} md={3}>
-          <KPICard label="IDs Remaining" value={remaining} />
+          <KPICard label="National IDs Remaining" value={remaining} />
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
           <KPICard label="Registered Voters" value={kpis?.registeredCount || 0} />
@@ -115,19 +79,17 @@ export default function Dashboard() {
         </Grid>
       </Grid>
 
-      {/* Charts */}
+      {/* Graphs */}
       <Grid container spacing={2} sx={{ mb: 4 }}>
         <Grid item xs={12} md={6}>
           <Card sx={{ p: 3 }}>
-            <Typography variant="h5" sx={{ mb: 2, fontWeight: 600 }}>
+            <Typography variant="h4" sx={{ mb: 2, fontWeight: 600 }}>
               Registration Trend (Last 30 Days)
             </Typography>
             {trendsLoading ? (
               <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
                 <CircularProgress />
               </Box>
-            ) : trendsError ? (
-              <Alert severity="warning">Error loading trend data</Alert>
             ) : (
               <ResponsiveContainer width="100%" height={280}>
                 <LineChart data={trends || []}>
@@ -144,15 +106,13 @@ export default function Dashboard() {
 
         <Grid item xs={12} md={6}>
           <Card sx={{ p: 3 }}>
-            <Typography variant="h5" sx={{ mb: 2, fontWeight: 600 }}>
+            <Typography variant="h4" sx={{ mb: 2, fontWeight: 600 }}>
               District Performance
             </Typography>
             {districtLoading ? (
               <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
                 <CircularProgress />
               </Box>
-            ) : districtError ? (
-              <Alert severity="warning">Error loading district data</Alert>
             ) : (
               <ResponsiveContainer width="100%" height={280}>
                 <BarChart data={(districtData || []).slice(0, 8)}>
@@ -168,7 +128,7 @@ export default function Dashboard() {
         </Grid>
       </Grid>
 
-      {/* Status Cards */}
+      {/* Overall Status Indicator */}
       <Grid container spacing={2}>
         <Grid item xs={12} md={4}>
           <Card sx={{ p: 4, textAlign: 'center', background: `linear-gradient(135deg, ${statusColor}20 0%, ${statusColor}10 100%)` }}>
@@ -176,27 +136,17 @@ export default function Dashboard() {
               Overall Progress
             </Typography>
             <Box sx={{ display: 'flex', justifyContent: 'center', mb: 3, position: 'relative', width: 120, height: 120, mx: 'auto' }}>
-              <Box
-                sx={{
-                  position: 'absolute',
-                  width: 120,
-                  height: 120,
-                  borderRadius: '50%',
-                  border: `4px solid #E5E7EB`,
-                }}
+              <CircularProgress
+                variant="determinate"
+                value={100}
+                size={120}
+                sx={{ color: '#E5E7EB' }}
               />
-              <Box
-                sx={{
-                  position: 'absolute',
-                  width: 120,
-                  height: 120,
-                  borderRadius: '50%',
-                  border: `4px solid ${statusColor}`,
-                  borderRightColor: '#E5E7EB',
-                  borderBottomColor: '#E5E7EB',
-                  borderLeftColor: '#E5E7EB',
-                  transform: `rotate(${(progressPercent / 100) * 360}deg)`,
-                }}
+              <CircularProgress
+                variant="determinate"
+                value={Math.min(progressPercent, 100)}
+                size={120}
+                sx={{ color: statusColor, position: 'absolute' }}
               />
               <Typography
                 variant="h2"
@@ -212,7 +162,7 @@ export default function Dashboard() {
                 {Math.round(progressPercent)}%
               </Typography>
             </Box>
-            <Typography variant="h5" sx={{ fontWeight: 700, color: statusColor, mb: 1 }}>
+            <Typography variant="h4" sx={{ fontWeight: 700, color: statusColor, mb: 1 }}>
               {statusLabel}
             </Typography>
             <Typography variant="body2" sx={{ color: '#6B7280' }}>
@@ -226,7 +176,7 @@ export default function Dashboard() {
             <Typography variant="body2" sx={{ color: '#6B7280', mb: 2 }}>
               Campaign Countdown
             </Typography>
-            <Typography variant="h2" sx={{ color: '#0056A6', fontWeight: 700, mb: 1 }}>
+            <Typography variant="h1" sx={{ color: '#0056A6', fontWeight: 700, mb: 1 }}>
               {kpis?.campaignDaysRemaining || 0}
             </Typography>
             <Typography variant="body1" sx={{ color: '#6B7280' }}>
