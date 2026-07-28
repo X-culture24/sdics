@@ -6,7 +6,7 @@ import * as z from 'zod'
 import { Box, TextField, Button, Typography, Alert, CircularProgress } from '@mui/material'
 import toast from 'react-hot-toast'
 import apiClient from '../../../api/axios'
-import { useAuth } from '../../../contexts/AuthContext'
+import { useAuthStore } from '../store/authStore'
 
 const loginSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -17,7 +17,7 @@ type LoginForm = z.infer<typeof loginSchema>
 
 export default function Login() {
   const navigate = useNavigate()
-  const { login } = useAuth()
+  const { setAuth } = useAuthStore()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const { register, handleSubmit, formState: { errors } } = useForm<LoginForm>({
@@ -29,13 +29,10 @@ export default function Login() {
     setError(null)
     try {
       const response = await apiClient.post('/auth/login', data)
-      const { access_token, refresh_token, user } = response.data
+      const { access_token, user } = response.data
 
-      // Store tokens
-      localStorage.setItem('accessToken', access_token)
-      localStorage.setItem('refreshToken', refresh_token)
-      
-      login(user, access_token, refresh_token)
+      // Use authStore to set auth state
+      setAuth(user, access_token, [])
       toast.success('Login successful!')
       navigate('/')
     } catch (err: any) {
