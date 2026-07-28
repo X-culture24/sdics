@@ -4,8 +4,6 @@
  */
 
 import { authService } from './api/auth.js';
-import { dashboardService } from './api/dashboard.js';
-import { initLoginPage } from './pages/login.js';
 import { initDashboardPage } from './pages/dashboard.js';
 import { initCitizensPage } from './pages/citizens.js';
 import { initCampaignsPage } from './pages/campaigns.js';
@@ -13,7 +11,6 @@ import { initUsersPage } from './pages/users.js';
 import { initImportsPage } from './pages/imports.js';
 import { initReportsPage } from './pages/reports.js';
 import { initAuditPage } from './pages/audit.js';
-import { initAdminUnitsPage } from './pages/admin-units.js';
 
 /**
  * Global App State
@@ -39,7 +36,7 @@ function requireAuth() {
 /**
  * Navigate to page
  */
-function navigateToPage(pageName) {
+async function navigateToPage(pageName) {
     if (app.currentPage === pageName) return;
 
     // Check authentication for protected pages
@@ -60,28 +57,28 @@ function navigateToPage(pageName) {
     try {
         switch (pageName) {
             case 'dashboard':
-                initDashboardPage();
+                await initDashboardPage();
                 break;
             case 'citizens':
-                initCitizensPage();
+                await initCitizensPage();
                 break;
             case 'campaigns':
-                initCampaignsPage();
+                await initCampaignsPage();
                 break;
             case 'users':
-                initUsersPage();
+                await initUsersPage();
                 break;
             case 'imports':
-                initImportsPage();
+                await initImportsPage();
                 break;
             case 'reports':
-                initReportsPage();
+                await initReportsPage();
                 break;
             case 'audit':
-                initAuditPage();
+                await initAuditPage();
                 break;
             default:
-                navigateToPage('dashboard');
+                await navigateToPage('dashboard');
         }
     } catch (error) {
         console.error('Error loading page:', error);
@@ -159,10 +156,10 @@ function updateUserDisplay() {
 function setupEventListeners() {
     // Sidebar navigation
     document.querySelectorAll('[data-page]').forEach(link => {
-        link.addEventListener('click', (e) => {
+        link.addEventListener('click', async (e) => {
             e.preventDefault();
             const pageName = link.getAttribute('data-page');
-            navigateToPage(pageName);
+            await navigateToPage(pageName);
         });
     });
 
@@ -217,7 +214,7 @@ async function initApp() {
     setupEventListeners();
 
     // Load dashboard as default page
-    navigateToPage('dashboard');
+    await navigateToPage('dashboard');
 }
 
 // Start app when DOM is ready
