@@ -19,7 +19,89 @@
     <link rel="stylesheet" href="css/dashboard.css">
 </head>
 <body>
-    <div id="app"></div>
+    <div class="d-flex" style="min-height: 100vh;">
+        <!-- Sidebar -->
+        <nav id="sidebar" class="sidebar bg-dark text-white p-3" style="width: 250px; overflow-y: auto;">
+            <div class="mb-4">
+                <h5 class="mb-3">NVRCMS</h5>
+                <small class="text-muted">Voter Registration System</small>
+            </div>
+            <ul class="nav flex-column">
+                <li class="nav-item">
+                    <a class="nav-link text-white" href="#" data-page="dashboard">
+                        <i class="bi bi-speedometer2"></i> Dashboard
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white" href="#" data-page="citizens">
+                        <i class="bi bi-people"></i> Citizens
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white" href="#" data-page="campaigns">
+                        <i class="bi bi-megaphone"></i> Campaigns
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white" href="#" data-page="users">
+                        <i class="bi bi-person-badge"></i> Users
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white" href="#" data-page="imports">
+                        <i class="bi bi-upload"></i> Imports
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white" href="#" data-page="reports">
+                        <i class="bi bi-file-earmark-pdf"></i> Reports
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white" href="#" data-page="audit">
+                        <i class="bi bi-clock-history"></i> Audit Logs
+                    </a>
+                </li>
+            </ul>
+            <hr class="bg-secondary">
+            <div>
+                <small class="text-muted d-block mb-2">Logged in as:</small>
+                <small id="userEmail" class="text-white">user@example.com</small>
+            </div>
+            <button id="logoutBtn" class="btn btn-sm btn-danger w-100 mt-3">Logout</button>
+        </nav>
+
+        <!-- Main Content -->
+        <div class="flex-grow-1 d-flex flex-column">
+            <!-- Top Bar -->
+            <div class="bg-light border-bottom p-3 d-flex justify-content-between align-items-center">
+                <h4 class="mb-0">NVRCMS</h4>
+                <div>
+                    <span id="currentDateTime" class="text-muted me-3"></span>
+                    <button id="sidebarToggle" class="btn btn-sm btn-outline-secondary d-md-none">
+                        <i class="bi bi-list"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Page Content -->
+            <div class="flex-grow-1 overflow-auto">
+                <div id="pageContainer" class="p-4">
+                    <div class="text-center text-muted">Loading...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="position-fixed top-0 start-0 w-100 h-100 bg-dark bg-opacity-50 d-none" style="z-index: 9999;">
+        <div class="position-absolute top-50 start-50 translate-middle">
+            <div class="spinner-border text-light" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+    </div>
+
     <script type="module" src="js/app.js"></script>
 </body>
 </html>

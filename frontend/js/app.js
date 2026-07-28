@@ -96,7 +96,7 @@ function navigateToPage(pageName) {
  */
 function showLoading() {
     const overlay = document.getElementById('loadingOverlay');
-    if (overlay) overlay.classList.add('active');
+    if (overlay) overlay.classList.remove('d-none');
     app.isLoading = true;
 }
 
@@ -105,7 +105,7 @@ function showLoading() {
  */
 function hideLoading() {
     const overlay = document.getElementById('loadingOverlay');
-    if (overlay) overlay.classList.remove('active');
+    if (overlay) overlay.classList.add('d-none');
     app.isLoading = false;
 }
 
