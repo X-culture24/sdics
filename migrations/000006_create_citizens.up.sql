@@ -1,4 +1,4 @@
-CREATE TABLE citizens (
+take a look at the project first we have a readCREATE TABLE citizens (
     id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     national_id         VARCHAR(20) UNIQUE NOT NULL,
     full_name           VARCHAR(255) NOT NULL,

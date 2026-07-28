@@ -1,44 +1,47 @@
 {
-  "name": "nvrcms-frontend",
+  "name": "sdics-frontend",
   "private": true,
   "version": "0.1.0",
+  "description": "SDICS - Strategic Digital Identification & Campaign System",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "lint": "eslint .",
-    "preview": "vite preview --port 5173"
+    "preview": "vite preview",
+    "lint": "eslint . --ext ts,tsx"
   },
   "dependencies": {
-    "@emotion/react": "^11.11.4",
-    "@emotion/styled": "^11.11.5",
-    "@hookform/resolvers": "^3.9.0",
-    "@mui/icons-material": "^5.16.4",
-    "@mui/material": "^5.16.4",
-    "@mui/x-data-grid": "^7.11.0",
-    "@tanstack/react-query": "^5.51.11",
-    "@tanstack/react-query-devtools": "^5.51.11",
-    "axios": "^1.7.2",
-    "dayjs": "^1.11.12",
-    "framer-motion": "^11.3.8",
-    "jwt-decode": "^4.0.0",
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.1",
+    "@hookform/resolvers": "^3.3.4",
+    "@mui/icons-material": "^5.14.0",
+    "@mui/material": "^5.14.0",
+    "@mui/x-data-grid": "^7.18.0",
+    "@tanstack/react-query": "^5.28.0",
+    "axios": "^1.6.2",
+    "dayjs": "^1.11.10",
+    "framer-motion": "^10.16.0",
+    "lucide-react": "^0.263.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "react-dropzone": "^14.2.3",
-    "react-hook-form": "^7.52.1",
-    "react-router-dom": "^6.25.1",
-    "recharts": "^2.12.7",
-    "yup": "^1.4.0"
+    "react-hook-form": "^7.48.0",
+    "react-hot-toast": "^2.4.1",
+    "react-router-dom": "^6.20.0",
+    "recharts": "^2.10.0",
+    "zod": "^3.22.4",
+    "zustand": "^4.4.1"
   },
   "devDependencies": {
-    "@types/react": "^18.3.3",
-    "@types/react-dom": "^18.3.0",
-    "@vitejs/plugin-react": "^4.3.1",
-    "typescript": "^5.5.3",
-    "vite": "^5.3.4"
-  },
-  "overrides": {
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "@types/node": "^20.10.0",
+    "@types/react": "^18.2.43",
+    "@types/react-dom": "^18.2.17",
+    "@typescript-eslint/eslint-plugin": "^6.14.0",
+    "@typescript-eslint/parser": "^6.14.0",
+    "@vitejs/plugin-react": "^4.2.0",
+    "autoprefixer": "^10.5.4",
+    "eslint": "^8.55.0",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^5.3.3",
+    "vite": "^5.0.0"
   }
 }

@@ -5,7 +5,7 @@ export const CONFIG = {
     // API Base URL - adjust if backend is on different server
     API_BASE: process.env.NODE_ENV === 'production' 
         ? window.location.origin 
-        : 'http://localhost:8000',
+        : 'http://localhost:8080',
     
     // Token storage keys
     TOKEN_KEY: 'auth_token',

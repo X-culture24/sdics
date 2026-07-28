@@ -23,11 +23,18 @@ const app = {
 };
 
 /**
+ * Show login form
+ */
+function showLoginForm() {
+    window.location.href = '/login.html';
+}
+
+/**
  * Redirect to login if not authenticated
  */
 function requireAuth() {
     if (!authService.isAuthenticated()) {
-        window.location.href = '/login.html';
+        showLoginForm();
         return false;
     }
     return true;

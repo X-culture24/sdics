@@ -1,0 +1,275 @@
+/**
+ * Table Component Styles
+ */
+
+.table-wrapper {
+    overflow-x: auto;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: white;
+}
+
+.data-table thead {
+    background-color: #f8f9fa;
+    border-bottom: 2px solid #e9ecef;
+}
+
+.data-table th {
+    padding: 16px;
+    text-align: left;
+    font-weight: 600;
+    color: #003d7a;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+}
+
+.data-table th.sortable {
+    cursor: pointer;
+    user-select: none;
+}
+
+.data-table th.sortable:hover {
+    background-color: #e9ecef;
+}
+
+.data-table th.sort-asc::after,
+.data-table th.sort-desc::after {
+    margin-left: 4px;
+}
+
+.data-table td {
+    padding: 16px;
+    border-bottom: 1px solid #e9ecef;
+    color: #212529;
+}
+
+.data-table tbody tr {
+    transition: background-color 0.2s ease;
+}
+
+.data-table tbody tr:hover {
+    background-color: #f8f9fa;
+}
+
+.data-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.data-table td.text-center {
+    text-align: center;
+}
+
+.data-table td.text-right {
+    text-align: right;
+}
+
+.data-table td.text-left {
+    text-align: left;
+}
+
+.data-table .data-row {
+    cursor: pointer;
+}
+
+/* Progress bar in table */
+.table-progress {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.table-progress-bar {
+    flex: 1;
+    height: 8px;
+    background-color: #e9ecef;
+    border-radius: 999px;
+    overflow: hidden;
+}
+
+.table-progress-bar-fill {
+    height: 100%;
+    background-color: #0066cc;
+    transition: width 0.3s ease;
+    border-radius: 999px;
+}
+
+.table-progress-bar-fill.warning {
+    background-color: #f9a825;
+}
+
+.table-progress-bar-fill.danger {
+    background-color: #dc3545;
+}
+
+.table-progress-label {
+    min-width: 40px;
+    text-align: right;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+/* Pagination */
+.pagination {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px;
+    background-color: white;
+    border-top: 1px solid #e9ecef;
+}
+
+.pagination-info {
+    font-size: 13px;
+    color: #666;
+}
+
+.pagination-controls {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+}
+
+.pagination-btn {
+    padding: 6px 12px;
+    min-width: auto;
+    min-height: auto;
+    font-size: 13px;
+    border: 1px solid #ddd;
+    background: white;
+    color: #003d7a;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.pagination-btn:hover:not(:disabled) {
+    background-color: #003d7a;
+    color: white;
+    border-color: #003d7a;
+}
+
+.pagination-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.pagination-btn.active {
+    background-color: #003d7a;
+    color: white;
+    border-color: #003d7a;
+}
+
+.pagination-ellipsis {
+    padding: 0 4px;
+    color: #999;
+}
+
+/* Loading state */
+.table-loading {
+    padding: 40px;
+    text-align: center;
+    color: #666;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+}
+
+.table-loading .spinner {
+    width: 32px;
+    height: 32px;
+}
+
+/* Empty state */
+.table-empty {
+    padding: 40px;
+    text-align: center;
+    color: #999;
+    background: white;
+    border-radius: 12px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .data-table th,
+    .data-table td {
+        padding: 12px 8px;
+        font-size: 13px;
+    }
+
+    .data-table th {
+        font-size: 11px;
+    }
+
+    .pagination {
+        flex-direction: column;
+        gap: 12px;
+        align-items: stretch;
+    }
+
+    .pagination-info,
+    .pagination-controls {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .pagination-btn {
+        flex: 1;
+    }
+
+    /* Hide less important columns on mobile */
+    .data-table th.hide-mobile,
+    .data-table td.hide-mobile {
+        display: none;
+    }
+}
+
+/* Actions column */
+.table-actions {
+    display: flex;
+    gap: 4px;
+    justify-content: center;
+}
+
+.table-actions button {
+    padding: 4px 8px;
+    font-size: 12px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    background-color: #f0f0f0;
+    color: #333;
+    transition: all 0.2s;
+}
+
+.table-actions button:hover {
+    background-color: #e0e0e0;
+}
+
+.table-actions button.action-edit {
+    color: #0066cc;
+}
+
+.table-actions button.action-delete {
+    color: #dc3545;
+}
+
+.table-actions button.action-delete:hover {
+    background-color: rgba(220, 53, 69, 0.1);
+}
+
+/* Status badges in table */
+.badge-inline {
+    display: inline-block;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+}

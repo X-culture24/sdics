@@ -109,18 +109,20 @@ func main() {
 		c.Redirect(http.StatusFound, "/swagger/index.html")
 	})
 
-	// Serve static frontend files
-	r.Static("/js", "./frontend/js")
-	r.Static("/styles", "./frontend/styles")
+	// Serve React build dist folder (SPA)
+	r.Static("/assets", "./frontend/assets")
 	r.StaticFile("/index.html", "./frontend/index.html")
 
-	// SPA routing - serve index.html for unknown routes
+	// SPA routing - serve index.html for all non-API routes
 	r.NoRoute(func(c *gin.Context) {
 		if strings.HasPrefix(c.Request.URL.Path, "/api/") {
 			// Let API 404s through
 			c.JSON(404, gin.H{"error": "endpoint not found"})
+		} else if strings.HasPrefix(c.Request.URL.Path, "/swagger") {
+			// Let Swagger through
+			c.Next()
 		} else {
-			// Serve SPA
+			// Serve React SPA
 			c.File("./frontend/index.html")
 		}
 	})
