@@ -3,14 +3,14 @@ import { useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
-import { Box, Container, Card, TextField, Button, Typography, Alert, CircularProgress } from '@mui/material'
+import { Box, TextField, Button, Typography, Alert, CircularProgress } from '@mui/material'
 import toast from 'react-hot-toast'
-import api from '../../../api/axios'
+import apiClient from '../../../api/axios'
 import { useAuth } from '../../../contexts/AuthContext'
 
 const loginSchema = z.object({
   email: z.string().email('Invalid email address'),
-  password: z.string().min(6, 'Password must be at least 6 characters'),
+  password: z.string().min(1, 'Password is required'),
 })
 
 type LoginForm = z.infer<typeof loginSchema>
@@ -28,14 +28,19 @@ export default function Login() {
     setLoading(true)
     setError(null)
     try {
-      const response = await api.post('/auth/login', data)
+      const response = await apiClient.post('/auth/login', data)
       const { access_token, refresh_token, user } = response.data
 
+      // Store tokens
+      localStorage.setItem('accessToken', access_token)
+      localStorage.setItem('refreshToken', refresh_token)
+      
       login(user, access_token, refresh_token)
       toast.success('Login successful!')
       navigate('/')
     } catch (err: any) {
-      const message = err.response?.data?.error?.message || 'Login failed'
+      console.error('Login error:', err)
+      const message = err.response?.data?.error?.message || err.message || 'Login failed'
       setError(message)
       toast.error(message)
     } finally {
@@ -44,43 +49,123 @@ export default function Login() {
   }
 
   return (
-    <Container maxWidth="sm">
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
-        <Card sx={{ p: 4, width: '100%', boxShadow: '0 8px 24px rgba(0,0,0,0.12)' }}>
-          <Box sx={{ textAlign: 'center', mb: 3 }}>
-            <Typography variant="h3" sx={{ fontWeight: 700, color: 'primary.main', mb: 1 }}>
-              SDICS
+    <Box sx={{ display: 'flex', height: '100vh', bgcolor: '#fff' }}>
+      {/* Blue Left Side */}
+      <Box sx={{
+        flex: 1,
+        background: 'linear-gradient(135deg, #0056A6 0%, #003D7A 100%)',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        p: 4,
+        color: 'white',
+      }}>
+        <Box sx={{ textAlign: 'center', maxWidth: 400 }}>
+          <img 
+            src="/logo.png" 
+            alt="Government Logo" 
+            style={{ 
+              width: 120, 
+              height: 120, 
+              borderRadius: '50%',
+              marginBottom: 24,
+              boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+              backgroundColor: 'rgba(255,255,255,0.1)',
+              padding: 8
+            }} 
+          />
+          <Typography variant="h3" sx={{ fontWeight: 800, mb: 2 }}>
+            SDICS
+          </Typography>
+          <Typography variant="h6" sx={{ fontWeight: 300, mb: 3, opacity: 0.95 }}>
+            Strategic Digital Identification & Campaign System
+          </Typography>
+          <Box sx={{ 
+            borderTop: '2px solid rgba(255,255,255,0.3)', 
+            pt: 3,
+            mt: 3
+          }}>
+            <Typography variant="body2" sx={{ opacity: 0.9, mb: 2, lineHeight: 1.8 }}>
+              A comprehensive platform for managing voter registration campaigns and citizen identification across Kenya's 47 counties.
             </Typography>
-            <Typography variant="body1" sx={{ color: 'text.secondary' }}>
-              Strategic Digital Identification & Campaign System
+            <Typography variant="caption" sx={{ opacity: 0.7 }}>
+              Secure • Scalable • Reliable
             </Typography>
           </Box>
+        </Box>
+      </Box>
 
-          {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+      {/* White Right Side - Login Form */}
+      <Box sx={{
+        flex: 1,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        p: 4,
+        background: '#fff',
+      }}>
+        <Box sx={{ width: '100%', maxWidth: 400 }}>
+          <Typography variant="h4" sx={{ fontWeight: 700, mb: 1, color: '#1F2937' }}>
+            Welcome Back
+          </Typography>
+          <Typography variant="body2" sx={{ color: '#6B7280', mb: 3 }}>
+            Sign in to access the SDICS platform
+          </Typography>
+
+          {error && (
+            <Alert severity="error" sx={{ mb: 3 }}>
+              {error}
+            </Alert>
+          )}
 
           <form onSubmit={handleSubmit(onSubmit)}>
             <TextField
               fullWidth
               label="Email Address"
               type="email"
+              placeholder="admin@sdics.tech"
               {...register('email')}
               error={!!errors.email}
               helperText={errors.email?.message}
               margin="normal"
               disabled={loading}
               variant="outlined"
+              autoComplete="email"
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  '&:hover fieldset': {
+                    borderColor: '#0056A6',
+                  },
+                  '&.Mui-focused fieldset': {
+                    borderColor: '#0056A6',
+                  },
+                },
+              }}
             />
 
             <TextField
               fullWidth
               label="Password"
               type="password"
+              placeholder="Enter your password"
               {...register('password')}
               error={!!errors.password}
               helperText={errors.password?.message}
               margin="normal"
               disabled={loading}
               variant="outlined"
+              autoComplete="current-password"
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  '&:hover fieldset': {
+                    borderColor: '#0056A6',
+                  },
+                  '&.Mui-focused fieldset': {
+                    borderColor: '#0056A6',
+                  },
+                },
+              }}
             />
 
             <Button
@@ -89,22 +174,40 @@ export default function Login() {
               size="large"
               type="submit"
               disabled={loading}
-              sx={{ mt: 3, mb: 2 }}
+              sx={{
+                mt: 4,
+                mb: 2,
+                background: 'linear-gradient(135deg, #0056A6 0%, #003D7A 100%)',
+                fontWeight: 600,
+                py: 1.5,
+              }}
             >
-              {loading ? <CircularProgress size={24} /> : 'Login'}
+              {loading ? (
+                <CircularProgress size={24} sx={{ color: 'white' }} />
+              ) : (
+                'Sign In'
+              )}
             </Button>
           </form>
 
-          <Box sx={{ mt: 3, pt: 2, borderTop: '1px solid', borderColor: 'divider' }}>
-            <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary', mb: 1 }}>
-              Test Credentials:
+          <Box sx={{ 
+            mt: 3, 
+            pt: 3, 
+            borderTop: '1px solid #E5E7EB',
+            textAlign: 'center'
+          }}>
+            <Typography variant="caption" sx={{ color: '#6B7280', display: 'block', mb: 1 }}>
+              Demo Credentials:
             </Typography>
-            <Typography variant="caption" sx={{ display: 'block', fontFamily: 'monospace', color: 'text.secondary' }}>
-              admin@sdics.tech / Admin123456
+            <Typography variant="caption" sx={{ fontFamily: 'monospace', color: '#374151', display: 'block', mb: 0.5 }}>
+              Email: admin@sdics.tech
+            </Typography>
+            <Typography variant="caption" sx={{ fontFamily: 'monospace', color: '#374151' }}>
+              Password: Admin@123456
             </Typography>
           </Box>
-        </Card>
+        </Box>
       </Box>
-    </Container>
+    </Box>
   )
 }

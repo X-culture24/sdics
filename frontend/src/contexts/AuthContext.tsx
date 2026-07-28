@@ -22,25 +22,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const storedUser = localStorage.getItem('user')
-    const token = localStorage.getItem('auth_token')
+    const token = localStorage.getItem('accessToken')
     if (storedUser && token) {
-      setUser(JSON.parse(storedUser))
-      setIsAuthenticated(true)
+      try {
+        setUser(JSON.parse(storedUser))
+        setIsAuthenticated(true)
+      } catch {
+        localStorage.removeItem('user')
+        localStorage.removeItem('accessToken')
+      }
     }
   }, [])
 
   const login = (userData: User, accessToken: string, refreshToken: string) => {
     localStorage.setItem('user', JSON.stringify(userData))
-    localStorage.setItem('auth_token', accessToken)
-    localStorage.setItem('refresh_token', refreshToken)
+    localStorage.setItem('accessToken', accessToken)
+    localStorage.setItem('refreshToken', refreshToken)
     setUser(userData)
     setIsAuthenticated(true)
   }
 
   const logout = () => {
     localStorage.removeItem('user')
-    localStorage.removeItem('auth_token')
-    localStorage.removeItem('refresh_token')
+    localStorage.removeItem('accessToken')
+    localStorage.removeItem('refreshToken')
     setUser(null)
     setIsAuthenticated(false)
   }
