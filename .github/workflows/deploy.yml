@@ -85,20 +85,41 @@ jobs:
 
       # ── Deploy ─────────────────────────────────────────────────────────────
       - name: Run migrations, configure nginx, and restart service
+        env:
+          SUDO_PASSWORD: ${{ secrets.SUDO_PASSWORD }}
         run: |
           ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
             ${{ secrets.DO_USER }}@${{ secrets.DO_HOST }} "
+              set -e
+              
+              # Make scripts executable
               chmod +x ~/nvrcms/bin/nvrcms-api
               chmod +x ~/nvrcms/scripts/migrate.sh
               chmod +x ~/nvrcms/scripts/configure-nginx.sh
-              chmod o+x ~
-              chmod o+x ~/nvrcms
-              chmod -R o+rx ~/nvrcms/frontend
+              
+              # Run migrations
+              echo '▶ Running database migrations...'
               bash ~/nvrcms/scripts/migrate.sh
-              sudo -n bash ~/nvrcms/scripts/configure-nginx.sh || echo 'Nginx config update requires manual sudo'
-              sudo -n systemctl restart nvrcms-api
+              
+              # Configure nginx (with sudo)
+              echo '▶ Configuring Nginx...'
+              echo '${{ secrets.SUDO_PASSWORD }}' | sudo -S bash ~/nvrcms/scripts/configure-nginx.sh 2>/dev/null || {
+                echo '⚠ Nginx config failed'
+              }
+              
+              # Restart service (with sudo)
+              echo '▶ Restarting nvrcms-api service...'
+              echo '${{ secrets.SUDO_PASSWORD }}' | sudo -S systemctl restart nvrcms-api || {
+                echo '⚠ Service restart failed'
+                exit 1
+              }
+              
               sleep 2
-              sudo -n systemctl status nvrcms-api --no-pager
-              echo '✅ Deploy complete'
+              
+              # Check status
+              echo '▶ Service status:'
+              systemctl status nvrcms-api --no-pager
+              
+              echo '✅ Deploy steps completed'
             "
 # Deployment fix - Tue Jul 28 12:51:37 AM EAT 2026
