@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NVRCMS - Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios@1.6.2/dist/axios.min.js"></script>
+    
+    <style>
+        * { font-family: 'Roboto', sans-serif; }
+        
+        :root {
+            --primary-green: #00a854;
+            --dark-green: #006b3f;
+            --accent-orange: #f9a825;
+            --text-dark: #1a1a1a;
+            --text-light: #666;
+            --border-color: #e0e0e0;
+        }
+        
+        body { margin: 0; background: #f5f5f5; }
+        
+        .app-wrapper { display: grid; grid-template-columns: 260px 1fr; min-height: 100vh; }
+        
+        /* SIDEBAR */
+        .sidebar {
+            background: var(--dark-green);
+            color: white;
+            padding: 2rem 1.5rem;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
+        }
+        
+        .sidebar-header {
+            padding-bottom: 1.5rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            margin-bottom: 2rem;
+        }
+        
+        .sidebar-header h4 {
+            margin: 0;
+            font-size: 1.3rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .sidebar-header i { font-size: 1.5rem; }
+        
+        .nav-list { list-style: none; padding: 0; margin: 0; flex: 1; }
+        
+        .nav-item { margin-bottom: 1rem; }
+        
+        .nav-link {
+            color: rgba(255, 255, 255, 0.8);
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 15px;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+            font-weight: 500;
+            cursor: pointer;
+            border: none;
+            background: none;
+            width: 100%;
+            text-align: left;
+        }
+        
+        .nav-link:hover {
+            background: rgba(255, 255, 255, 0.15);
+            color: white;
+            transform: translateX(4px);
+        }
+        
+        .nav-link.active {
+            background: var(--accent-orange);
+            color: white;
+        }
+        
+        .nav-link i { width: 20px; text-align: center; }
+        
+        .sidebar-footer { margin-top: auto; padding-top: 1.5rem; border-top: 1px solid rgba(255, 255, 255, 0.1); }
+        
+        .user-info { margin-bottom: 1rem; }
+        
+        .user-email { color: rgba(255, 255, 255, 0.9); font-weight: 500; }
+        
+        /* MAIN CONTENT */
+        .main-content { display: flex; flex-direction: column; }
+        
+        .topbar {
+            background: white;
+            border-bottom: 1px solid var(--border-color);
+            padding: 1.5rem 2rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+        }
+        
+        .topbar h4 { margin: 0; font-size: 1.5rem; font-weight: 700; color: var(--text-dark); }
+        
+        .topbar-right { display: flex; align-items: center; gap: 2rem; }
+        
+        .datetime { font-weight: 500; color: var(--text-light); }
+        
+        .page-content { flex: 1; overflow-y: auto; padding: 2rem; }
+        
+        .page { display: none; }
+        
+        .page.active { display: block; }
+        
+        /* PAGE HEADER */
+        .page-header { margin-bottom: 2rem; }
+        
+        .page-header h1 { font-size: 2rem; font-weight: 700; color: var(--text-dark); margin: 0 0 0.5rem 0; }
+        
+        .page-header p { color: var(--text-light); margin: 0; }
+        
+        /* KPI GRID */
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 2rem;
+            margin-bottom: 3rem;
+        }
+        
+        .kpi-card {
+            background: white;
+            border-radius: 12px;
+            padding: 2rem;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+            border-left: 5px solid var(--primary-green);
+            transition: all 0.3s ease;
+        }
+        
+        .kpi-card:hover { transform: translateY(-4px); box-shadow: 0 8px 16px rgba(0, 0, 0, 0.12); }
+        
+        .kpi-card.orange { border-left-color: var(--accent-orange); }
+        .kpi-card.blue { border-left-color: #1e90ff; }
+        .kpi-card.purple { border-left-color: #9c27b0; }
+        
+        .kpi-icon {
+            font-size: 2rem;
+            width: 50px;
+            height: 50px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 1rem;
+        }
+        
+        .kpi-card.green .kpi-icon { background: rgba(0, 168, 84, 0.1); color: var(--primary-green); }
+        .kpi-card.orange .kpi-icon { background: rgba(249, 168, 37, 0.1); color: var(--accent-orange); }
+        .kpi-card.blue .kpi-icon { background: rgba(30, 144, 255, 0.1); color: #1e90ff; }
+        .kpi-card.purple .kpi-icon { background: rgba(156, 39, 176, 0.1); color: #9c27b0; }
+        
+        .kpi-label { font-size: 0.85rem; font-weight: 600; text-transform: uppercase; color: var(--text-light); margin-bottom: 0.5rem; }
+        
+        .kpi-value { font-size: 2.5rem; font-weight: 900; color: var(--text-dark); margin-bottom: 0.5rem; }
+        
+        .kpi-subtitle { font-size: 0.9rem; color: var(--text-light); }
+        
+        /* CHARTS */
+        .charts-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 2rem;
+            margin-bottom: 3rem;
+        }
+        
+        .chart-box {
+            background: white;
+            border-radius: 12px;
+            padding: 2rem;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        }
+        
+        .chart-title { font-size: 1.1rem; font-weight: 700; color: var(--text-dark); margin-bottom: 1.5rem; display: flex; align-items: center; gap: 10px; }
+        
+        .chart-title i { color: var(--primary-green); }
+        
+        .chart-container { position: relative; height: 300px; width: 100%; }
+        
+        /* DATA TABLE */
+        .data-box {
+            background: white;
+            border-radius: 12px;
+            padding: 2rem;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        }
+        
+        .data-table { width: 100%; border-collapse: collapse; margin: 0; }
+        
+        .data-table thead { background: #f5f5f5; border-bottom: 2px solid var(--border-color); }
+        
+        .data-table th { padding: 1rem; text-align: left; font-weight: 600; color: var(--text-dark); font-size: 0.9rem; text-transform: uppercase; }
+        
+        .data-table td { padding: 1rem; border-bottom: 1px solid var(--border-color); color: var(--text-dark); }
+        
+        .data-table tbody tr:hover { background: #fafafa; }
+        
+        /* RESPONSIVE */
+        @media (max-width: 768px) {
+            .app-wrapper { grid-template-columns: 1fr; }
+            .sidebar { padding: 1rem; }
+            .page-content { padding: 1rem; }
+            .kpi-grid { grid-template-columns: 1fr; }
+            .charts-container { grid-template-columns: 1fr; }
+            .topbar { flex-wrap: wrap; }
+        }
+        
+        .loading { text-align: center; padding: 2rem; }
+        .spinner { display: inline-block; width: 40px; height: 40px; border: 4px solid #f3f3f3; border-top: 4px solid var(--primary-green); border-radius: 50%; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+    <div class="app-wrapper">
+        <!-- SIDEBAR -->
+        <nav class="sidebar">
+            <div class="sidebar-header">
+                <h4><i class="bi bi-check2-circle"></i> NVRCMS</h4>
+            </div>
+            
+            <ul class="nav-list">
+                <li class="nav-item">
+                    <button class="nav-link active" onclick="navigatePage('dashboard')">
+                        <i class="bi bi-speedometer2"></i> Dashboard
+                    </button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link" onclick="navigatePage('citizens')">
+                        <i class="bi bi-people"></i> Citizens
+                    </button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link" onclick="navigatePage('campaigns')">
+                        <i class="bi bi-megaphone"></i> Campaigns
+                    </button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link" onclick="navigatePage('users')">
+                        <i class="bi bi-person-badge"></i> Users
+                    </button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link" onclick="navigatePage('reports')">
+                        <i class="bi bi-file-pdf"></i> Reports
+                    </button>
+                </li>
+            </ul>
+            
+            <div class="sidebar-footer">
+                <div class="user-info">
+                    <small class="d-block" style="color: rgba(255,255,255,0.7); margin-bottom: 0.5rem;">Logged in as:</small>
+                    <div class="user-email" id="userEmail">Loading...</div>
+                </div>
+                <button onclick="logout()" class="btn btn-sm w-100" style="background: var(--accent-orange); color: var(--text-dark); font-weight: 600; border: none;">
+                    <i class="bi bi-box-arrow-left me-2"></i>Logout
+                </button>
+            </div>
+        </nav>
+        
+        <!-- MAIN CONTENT -->
+        <main class="main-content">
+            <!-- TOP BAR -->
+            <div class="topbar">
+                <h4>National Voter Registration Campaign Management System</h4>
+                <div class="topbar-right">
+                    <span class="datetime" id="datetime">Loading...</span>
+                    <div class="dropdown">
+                        <button class="btn btn-link text-dark p-0" data-bs-toggle="dropdown">
+                            <i class="bi bi-bell" style="font-size: 1.5rem;"></i>
+                            <span id="notificationBadge" class="badge bg-danger" style="position: absolute; top: -5px; right: -5px;">0</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- PAGE CONTENT -->
+            <div class="page-content">
+                
+                <!-- DASHBOARD PAGE -->
+                <div id="dashboard" class="page active">
+                    <div class="page-header">
+                        <h1>Dashboard</h1>
+                        <p>Campaign Performance Overview</p>
+                    </div>
+                    
+                    <div class="kpi-grid" id="kpiGrid">
+                        <div class="kpi-card green">
+                            <div class="kpi-icon"><i class="bi bi-hourglass-split"></i></div>
+                            <div class="kpi-label">Loading...</div>
+                        </div>
+                    </div>
+                    
+                    <div class="charts-container">
+                        <div class="chart-box">
+                            <div class="chart-title"><i class="bi bi-graph-up"></i> Registration Trend</div>
+                            <div class="chart-container"><canvas id="trendChart"></canvas></div>
+                        </div>
+                        <div class="chart-box">
+                            <div class="chart-title"><i class="bi bi-pie-chart"></i> Campaign Progress</div>
+                            <div class="chart-container"><canvas id="gaugeChart"></canvas></div>
+                        </div>
+                    </div>
+                    
+                    <div class="chart-box">
+                        <div class="chart-title"><i class="bi bi-bar-chart"></i> District Performance</div>
+                        <div class="chart-container"><canvas id="districtChart"></canvas></div>
+                    </div>
+                    
+                    <div class="data-box" style="margin-top: 2rem;">
+                        <div class="chart-title"><i class="bi bi-table"></i> Regional Performance</div>
+                        <div style="overflow-x: auto;">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>District</th>
+                                        <th>Population</th>
+                                        <th>Registered</th>
+                                        <th>Unregistered</th>
+                                        <th>Progress</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="performanceTable">
+                                    <tr><td colspan="6" class="loading"><div class="spinner"></div></td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- CITIZENS PAGE -->
+                <div id="citizens" class="page">
+                    <div class="page-header">
+                        <h1>Citizens</h1>
+                        <p>Manage and view citizen records</p>
+                    </div>
+                    <div id="citizensContent"></div>
+                </div>
+                
+                <!-- CAMPAIGNS PAGE -->
+                <div id="campaigns" class="page">
+                    <div class="page-header">
+                        <h1>Campaigns</h1>
+                        <p>Voter registration campaigns</p>
+                    </div>
+                    <div id="campaignsContent"></div>
+                </div>
+                
+                <!-- USERS PAGE -->
+                <div id="users" class="page">
+                    <div class="page-header">
+                        <h1>Users</h1>
+                        <p>System users and permissions</p>
+                    </div>
+                    <div id="usersContent"></div>
+                </div>
+                
+                <!-- REPORTS PAGE -->
+                <div id="reports" class="page">
+                    <div class="page-header">
+                        <h1>Reports</h1>
+                        <p>Campaign reports and analytics</p>
+                    </div>
+                    <div id="reportsContent"><p class="text-muted">Reports feature coming soon</p></div>
+                </div>
+                
+            </div>
+        </main>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // CONFIGURATION
+        const API_URL = `${window.location.protocol}//${window.location.host}/api/v1`;
+        let currentPage = 'dashboard';
+        let charts = {};
+
+        // AUTH HELPERS
+        function getAuthToken() {
+            const token = localStorage.getItem('auth_token');
+            if (!token) {
+                window.location.href = '/login.html';
+                return null;
+            }
+            return token;
+        }
+
+        function logout() {
+            localStorage.removeItem('auth_token');
+            localStorage.removeItem('refresh_token');
+            localStorage.removeItem('user');
+            window.location.href = '/login.html';
+        }
+
+        // API CALL HELPER
+        async function apiCall(endpoint, options = {}) {
+            const token = getAuthToken();
+            if (!token) return null;
+
+            try {
+                const config = {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    ...options
+                };
+                const response = await axios.get(`${API_URL}${endpoint}`, config);
+                return response.data;
+            } catch (error) {
+                console.error(`API Error (${endpoint}):`, error);
+                if (error.response?.status === 401) {
+                    logout();
+                }
+                return null;
+            }
+        }
+
+        // UPDATE UI
+        function updateUserDisplay() {
+            const user = JSON.parse(localStorage.getItem('user') || '{}');
+            document.getElementById('userEmail').textContent = user.email || 'user@example.com';
+        }
+
+        function updateDateTime() {
+            const now = new Date();
+            document.getElementById('datetime').textContent = now.toLocaleDateString('en-US', {
+                weekday: 'short',
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        }
+
+        // PAGE NAVIGATION
+        function navigatePage(pageName) {
+            // Hide all pages
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+            // Show selected page
+            document.getElementById(pageName).classList.add('active');
+            // Update nav links
+            document.querySelectorAll('.nav-link').forEach(link => link.classList.remove('active'));
+            document.querySelector(`button[onclick="navigatePage('${pageName}')"]`).classList.add('active');
+
+            currentPage = pageName;
+
+            // Load page data
+            switch (pageName) {
+                case 'dashboard': loadDashboard(); break;
+                case 'citizens': loadCitizens(); break;
+                case 'campaigns': loadCampaigns(); break;
+                case 'users': loadUsers(); break;
+                case 'reports': loadReports(); break;
+            }
+        }
+
+        // DASHBOARD FUNCTIONS
+        function formatNumber(num) {
+            return new Intl.NumberFormat('en-US').format(num);
+        }
+
+        async function loadDashboard() {
+            try {
+                const data = await apiCall('/dashboard/kpis');
+                if (data) renderKPIs(data);
+                
+                const trend = await apiCall('/dashboard/trend');
+                if (trend) renderTrendChart(trend);
+                
+                const performance = await apiCall('/dashboard/performance');
+                if (performance) renderPerformanceTable(performance);
+            } catch (error) {
+                console.error('Dashboard load error:', error);
+            }
+        }
+
+        function renderKPIs(data) {
+            const grid = document.getElementById('kpiGrid');
+            if (!data) return;
+
+            const kpis = [
+                { label: 'Total Citizens', value: data.total_citizens || 0, icon: 'bi-people', color: 'green' },
+                { label: 'Registered', value: data.registered_voters || 0, icon: 'bi-check2-circle', color: 'orange' },
+                { label: 'Unregistered', value: data.unregistered_voters || 0, icon: 'bi-graph-up', color: 'blue' },
+                { label: 'Registration %', value: (data.registration_percentage || 0) + '%', icon: 'bi-target', color: 'purple' }
+            ];
+
+            grid.innerHTML = kpis.map(kpi => `
+                <div class="kpi-card ${kpi.color}">
+                    <div class="kpi-icon"><i class="bi ${kpi.icon}"></i></div>
+                    <div class="kpi-label">${kpi.label}</div>
+                    <div class="kpi-value">${formatNumber(kpi.value)}</div>
+                    <div class="kpi-subtitle">Total registered</div>
+                </div>
+            `).join('');
+        }
+
+        function renderTrendChart(data) {
+            const canvas = document.getElementById('trendChart');
+            if (!canvas || !Array.isArray(data) || data.length === 0) return;
+
+            if (charts.trend) charts.trend.destroy();
+
+            const labels = data.slice(-30).map(d => d.date || '');
+            const values = data.slice(-30).map(d => d.count || d.registered || 0);
+
+            charts.trend = new Chart(canvas.getContext('2d'), {
+                type: 'line',
+                data: {
+                    labels,
+                    datasets: [{
+                        label: 'Daily Registrations',
+                        data: values,
+                        borderColor: '#00a854',
+                        backgroundColor: 'rgba(0, 168, 84, 0.1)',
+                        tension: 0.4,
+                        fill: true,
+                        borderWidth: 2,
+                        pointBackgroundColor: '#00a854',
+                        pointBorderColor: '#fff',
+                        pointBorderWidth: 2,
+                        pointRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: true, labels: { font: { size: 12 } } } },
+                    scales: {
+                        y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.05)' } },
+                        x: { grid: { display: false } }
+                    }
+                }
+            });
+        }
+
+        function renderPerformanceTable(data) {
+            const tbody = document.getElementById('performanceTable');
+            if (!Array.isArray(data) || data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">No data available</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = data.slice(0, 10).map(row => {
+                const progress = (row.progress || 0);
+                const progressColor = progress >= 80 ? '#00a854' : progress >= 50 ? '#f9a825' : '#dc3545';
+                
+                return `<tr>
+                    <td>${row.name || row.district || '-'}</td>
+                    <td>${formatNumber(row.adult_population || 0)}</td>
+                    <td><span class="badge" style="background: #00a854;">${formatNumber(row.registered || 0)}</span></td>
+                    <td><span class="badge" style="background: #f9a825; color: #333;">${formatNumber(row.unregistered || 0)}</span></td>
+                    <td>
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <div style="height: 8px; background: #e0e0e0; border-radius: 4px; flex: 1; overflow: hidden; min-width: 80px;">
+                                <div style="height: 100%; width: ${Math.min(progress, 100)}%; background: ${progressColor}; border-radius: 4px;"></div>
+                            </div>
+                            <small>${progress.toFixed(1)}%</small>
+                        </div>
+                    </td>
+                    <td><span class="badge" style="background: ${progressColor === '#00a854' ? '#e6f7ed' : '#fff3cd'}; color: ${progressColor === '#00a854' ? '#006b3f' : '#664d03'};">${progress >= 80 ? 'On Track' : 'In Progress'}</span></td>
+                </tr>`;
+            }).join('');
+        }
+
+        // OTHER PAGE LOADERS
+        async function loadCitizens() {
+            const container = document.getElementById('citizensContent');
+            try {
+                const data = await apiCall('/citizens?limit=20');
+                if (!data || !data.data) {
+                    container.innerHTML = '<div class="alert alert-info">No citizens found</div>';
+                    return;
+                }
+
+                let html = '<div class="data-box"><table class="data-table"><thead><tr><th>Name</th><th>National ID</th><th>Status</th></tr></thead><tbody>';
+                data.data.forEach(citizen => {
+                    html += `<tr><td>${citizen.full_name}</td><td>${citizen.national_id}</td><td><span class="badge bg-primary">${citizen.registration_status}</span></td></tr>`;
+                });
+                html += '</tbody></table></div>';
+                container.innerHTML = html;
+            } catch (error) {
+                container.innerHTML = '<div class="alert alert-danger">Error loading citizens</div>';
+            }
+        }
+
+        async function loadCampaigns() {
+            const container = document.getElementById('campaignsContent');
+            try {
+                const data = await apiCall('/campaigns?limit=20');
+                if (!data || !data.data) {
+                    container.innerHTML = '<div class="alert alert-info">No campaigns found</div>';
+                    return;
+                }
+
+                let html = '<div class="data-box"><table class="data-table"><thead><tr><th>Name</th><th>Status</th><th>Start Date</th><th>End Date</th></tr></thead><tbody>';
+                data.data.forEach(campaign => {
+                    html += `<tr><td>${campaign.name}</td><td><span class="badge bg-success">${campaign.status}</span></td><td>${campaign.start_date}</td><td>${campaign.end_date}</td></tr>`;
+                });
+                html += '</tbody></table></div>';
+                container.innerHTML = html;
+            } catch (error) {
+                container.innerHTML = '<div class="alert alert-danger">Error loading campaigns</div>';
+            }
+        }
+
+        async function loadUsers() {
+            const container = document.getElementById('usersContent');
+            try {
+                const data = await apiCall('/users?limit=20');
+                if (!data || !data.data) {
+                    container.innerHTML = '<div class="alert alert-info">No users found</div>';
+                    return;
+                }
+
+                let html = '<div class="data-box"><table class="data-table"><thead><tr><th>Email</th><th>Role</th><th>Status</th><th>Created</th></tr></thead><tbody>';
+                data.data.forEach(user => {
+                    const status = user.is_active ? '<span class="badge bg-success">Active</span>' : '<span class="badge bg-danger">Inactive</span>';
+                    html += `<tr><td>${user.email}</td><td>${user.role?.name || 'N/A'}</td><td>${status}</td><td>${user.created_at}</td></tr>`;
+                });
+                html += '</tbody></table></div>';
+                container.innerHTML = html;
+            } catch (error) {
+                container.innerHTML = '<div class="alert alert-danger">Error loading users</div>';
+            }
+        }
+
+        function loadReports() {
+            document.getElementById('reportsContent').innerHTML = '<div class="alert alert-info">Reports feature coming soon</div>';
+        }
+
+        // INITIALIZE
+        window.addEventListener('load', function() {
+            getAuthToken();
+            updateUserDisplay();
+            updateDateTime();
+            setInterval(updateDateTime, 60000);
+            loadDashboard();
+        });
+    </script>
+</body>
+</html>
