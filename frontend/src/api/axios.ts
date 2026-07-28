@@ -1,7 +1,6 @@
 import axios, { AxiosError, AxiosResponse } from 'axios';
 
-// Use relative URL so it goes to the same domain in production
-const API_URL = '/api/v1';
+const API_URL = (import.meta as any).env.VITE_API_URL || 'http://localhost:8080/api/v1';
 
 export const apiClient = axios.create({
   baseURL: API_URL,
