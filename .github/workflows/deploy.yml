@@ -42,10 +42,10 @@ jobs:
         run: |
           ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
             ${{ secrets.DO_USER }}@${{ secrets.DO_HOST }} "
-              mkdir -p ~/nvrcms/bin ~/nvrcms/migrations ~/nvrcms/scripts \
-                       ~/nvrcms/uploads ~/nvrcms/logs ~/nvrcms/frontend ~/nvrcms/datasets
-              sudo -n systemctl stop nvrcms-api || true
-              rm -f ~/nvrcms/bin/nvrcms-api
+              mkdir -p /home/lawrence/nvrcms/bin /home/lawrence/nvrcms/migrations /home/lawrence/nvrcms/scripts \
+                       /home/lawrence/nvrcms/uploads /home/lawrence/nvrcms/logs /home/lawrence/nvrcms/frontend /home/lawrence/nvrcms/datasets
+              systemctl stop nvrcms-api || true
+              rm -f /home/lawrence/nvrcms/bin/nvrcms-api
             "
 
       # ── Copy Artifacts ─────────────────────────────────────────────────────
@@ -54,65 +54,58 @@ jobs:
           chmod +x bin/nvrcms-api
           scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
             bin/nvrcms-api \
-            ${{ secrets.DO_USER }}@${{ secrets.DO_HOST }}:~/nvrcms/bin/nvrcms-api
+            ${{ secrets.DO_USER }}@${{ secrets.DO_HOST }}:/home/lawrence/nvrcms/bin/nvrcms-api
 
       - name: Copy frontend build
         run: |
           ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
             ${{ secrets.DO_USER }}@${{ secrets.DO_HOST }} \
-            "rm -rf ~/nvrcms/frontend/* && mkdir -p ~/nvrcms/frontend"
+            "rm -rf /home/lawrence/nvrcms/frontend/* && mkdir -p /home/lawrence/nvrcms/frontend"
           scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -r \
             frontend/{index.html,js,styles} \
-            ${{ secrets.DO_USER }}@${{ secrets.DO_HOST }}:~/nvrcms/frontend/
+            ${{ secrets.DO_USER }}@${{ secrets.DO_HOST }}:/home/lawrence/nvrcms/frontend/
 
       - name: Copy datasets
         run: |
           scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -r \
             datasets/. \
-            ${{ secrets.DO_USER }}@${{ secrets.DO_HOST }}:~/nvrcms/datasets/
+            ${{ secrets.DO_USER }}@${{ secrets.DO_HOST }}:/home/lawrence/nvrcms/datasets/
 
       - name: Copy migration files
         run: |
           scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -r \
             migrations/. \
-            ${{ secrets.DO_USER }}@${{ secrets.DO_HOST }}:~/nvrcms/migrations/
+            ${{ secrets.DO_USER }}@${{ secrets.DO_HOST }}:/home/lawrence/nvrcms/migrations/
 
       - name: Copy scripts
         run: |
           scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
             scripts/migrate.sh scripts/seed.sql scripts/configure-nginx.sh \
-            ${{ secrets.DO_USER }}@${{ secrets.DO_HOST }}:~/nvrcms/scripts/
+            ${{ secrets.DO_USER }}@${{ secrets.DO_HOST }}:/home/lawrence/nvrcms/scripts/
 
       # ── Deploy ─────────────────────────────────────────────────────────────
       - name: Run migrations, configure nginx, and restart service
-        env:
-          SUDO_PASSWORD: ${{ secrets.SUDO_PASSWORD }}
         run: |
           ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
             ${{ secrets.DO_USER }}@${{ secrets.DO_HOST }} "
               set -e
               
               # Make scripts executable
-              chmod +x ~/nvrcms/bin/nvrcms-api
-              chmod +x ~/nvrcms/scripts/migrate.sh
-              chmod +x ~/nvrcms/scripts/configure-nginx.sh
+              chmod +x /home/lawrence/nvrcms/bin/nvrcms-api
+              chmod +x /home/lawrence/nvrcms/scripts/migrate.sh
+              chmod +x /home/lawrence/nvrcms/scripts/configure-nginx.sh
               
               # Run migrations
               echo '▶ Running database migrations...'
-              bash ~/nvrcms/scripts/migrate.sh
+              bash /home/lawrence/nvrcms/scripts/migrate.sh
               
-              # Configure nginx (with sudo)
+              # Configure nginx
               echo '▶ Configuring Nginx...'
-              echo '${{ secrets.SUDO_PASSWORD }}' | sudo -S bash ~/nvrcms/scripts/configure-nginx.sh 2>/dev/null || {
-                echo '⚠ Nginx config failed'
-              }
+              bash /home/lawrence/nvrcms/scripts/configure-nginx.sh
               
-              # Restart service (with sudo)
+              # Restart service
               echo '▶ Restarting nvrcms-api service...'
-              echo '${{ secrets.SUDO_PASSWORD }}' | sudo -S systemctl restart nvrcms-api || {
-                echo '⚠ Service restart failed'
-                exit 1
-              }
+              systemctl restart nvrcms-api
               
               sleep 2
               
@@ -120,6 +113,6 @@ jobs:
               echo '▶ Service status:'
               systemctl status nvrcms-api --no-pager
               
-              echo '✅ Deploy steps completed'
+              echo '✅ Deploy complete'
             "
 # Deployment fix - Tue Jul 28 12:51:37 AM EAT 2026
