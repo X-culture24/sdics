@@ -45,10 +45,16 @@ type CitizenService struct {
 	db          *gorm.DB
 	adminUnit   *AdminUnitService
 	campaignSvc *CampaignService
+	wsManager   *WebSocketManager
 }
 
-func NewCitizenService(db *gorm.DB, adminUnit *AdminUnitService, campaignSvc *CampaignService) *CitizenService {
-	return &CitizenService{db: db, adminUnit: adminUnit, campaignSvc: campaignSvc}
+func NewCitizenService(db *gorm.DB, adminUnit *AdminUnitService, campaignSvc *CampaignService, wsManager *WebSocketManager) *CitizenService {
+	return &CitizenService{
+		db:          db,
+		adminUnit:   adminUnit,
+		campaignSvc: campaignSvc,
+		wsManager:   wsManager,
+	}
 }
 
 type CreateCitizenParams struct {
@@ -406,6 +412,12 @@ func (s *CitizenService) RegisterCitizen(citizenID, campaignID, registeredBy, us
 
 	if err := tx.Commit().Error; err != nil {
 		return nil, err
+	}
+
+	// Broadcast to WebSocket clients
+	if s.wsManager != nil {
+		updatedCitizen, _ := s.GetByID(citizenID)
+		s.wsManager.BroadcastCitizenRegistered(updatedCitizen, registeredBy, campaignID)
 	}
 
 	return record, nil

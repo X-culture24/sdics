@@ -90,9 +90,9 @@ export default function Dashboard() {
               <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
                 <CircularProgress />
               </Box>
-            ) : (
+            ) : Array.isArray(trends) && trends.length > 0 ? (
               <ResponsiveContainer width="100%" height={280}>
-                <LineChart data={trends || []}>
+                <LineChart data={trends}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
                   <XAxis dataKey="date" stroke="#6B7280" />
                   <YAxis stroke="#6B7280" />
@@ -100,6 +100,10 @@ export default function Dashboard() {
                   <Line type="monotone" dataKey="count" stroke="#0056A6" strokeWidth={2} dot={{ fill: '#0056A6' }} />
                 </LineChart>
               </ResponsiveContainer>
+            ) : (
+              <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 4, color: '#6B7280' }}>
+                No data available
+              </Box>
             )}
           </Card>
         </Grid>
@@ -113,9 +117,9 @@ export default function Dashboard() {
               <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
                 <CircularProgress />
               </Box>
-            ) : (
+            ) : Array.isArray(districtData) && districtData.length > 0 ? (
               <ResponsiveContainer width="100%" height={280}>
-                <BarChart data={(districtData || []).slice(0, 8)}>
+                <BarChart data={districtData.slice(0, 8)}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
                   <XAxis dataKey="districtName" angle={-45} textAnchor="end" height={80} stroke="#6B7280" />
                   <YAxis stroke="#6B7280" />
@@ -123,6 +127,10 @@ export default function Dashboard() {
                   <Bar dataKey="registeredCount" fill="#0056A6" />
                 </BarChart>
               </ResponsiveContainer>
+            ) : (
+              <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 4, color: '#6B7280' }}>
+                No data available
+              </Box>
             )}
           </Card>
         </Grid>
@@ -176,11 +184,35 @@ export default function Dashboard() {
             <Typography variant="body2" sx={{ color: '#6B7280', mb: 2 }}>
               Campaign Countdown
             </Typography>
-            <Typography variant="h1" sx={{ color: '#0056A6', fontWeight: 700, mb: 1 }}>
-              {kpis?.campaignDaysRemaining || 0}
-            </Typography>
-            <Typography variant="body1" sx={{ color: '#6B7280' }}>
-              Days Remaining
+            <Box sx={{ mb: 3 }}>
+              <Typography variant="h4" sx={{ color: '#0056A6', fontWeight: 700, mb: 1 }}>
+                {kpis?.campaignDaysRemaining || 0} / 40
+              </Typography>
+              <Typography variant="body2" sx={{ color: '#6B7280', mb: 2 }}>
+                Days Remaining
+              </Typography>
+              <Box
+                sx={{
+                  width: '100%',
+                  height: 16,
+                  backgroundColor: '#E5E7EB',
+                  borderRadius: 2,
+                  overflow: 'hidden',
+                  border: '1px solid #D1D5DB',
+                }}
+              >
+                <Box
+                  sx={{
+                    height: '100%',
+                    width: `${((kpis?.campaignDaysRemaining || 0) / 40) * 100}%`,
+                    backgroundColor: (kpis?.campaignDaysRemaining || 0) > 20 ? '#16A34A' : '#F59E0B',
+                    transition: 'width 0.3s ease',
+                  }}
+                />
+              </Box>
+            </Box>
+            <Typography variant="caption" sx={{ color: '#6B7280', display: 'block' }}>
+              {Math.round(((kpis?.campaignDaysRemaining || 0) / 40) * 100)}% of campaign period remaining
             </Typography>
           </Card>
         </Grid>

@@ -78,8 +78,8 @@ export interface Campaign {
   startDate: string;
   endDate: string;
   status: string;
-  initialNidCount: number;
-  createdBy?: string;
+  initial_nid_count: number;
+  created_by?: string;
   createdAt: string;
   updatedAt: string;
 }

@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -36,12 +37,16 @@ func main() {
 	}
 	_ = os.MkdirAll("./datasets", 0755)
 
+	// WebSocket Manager
+	wsManager := service.NewWebSocketManager(1000)
+	go wsManager.Run()
+
 	// Services
 	authSvc := service.NewAuthService(db, cfg)
 	adminUnitSvc := service.NewAdminUnitService(db)
 	userSvc := service.NewUserService(db, authSvc, adminUnitSvc)
 	campaignSvc := service.NewCampaignService(db)
-	citizenSvc := service.NewCitizenService(db, adminUnitSvc, campaignSvc)
+	citizenSvc := service.NewCitizenService(db, adminUnitSvc, campaignSvc, wsManager)
 	dashboardSvc := service.NewDashboardService(db, adminUnitSvc, campaignSvc)
 	importSvc := service.NewImportService(db, cfg, adminUnitSvc, citizenSvc)
 
@@ -49,13 +54,19 @@ func main() {
 	// seeded installation, start one background import; existing databases are
 	// left untouched and can still use the Import page on demand.
 	go func() {
-		var citizenCount, existingDatasetJobs int64
-		if db.Model(&model.Citizen{}).Count(&citizenCount).Error != nil || citizenCount > 0 {
-			return
-		}
+		// Check if there are already pending or running dataset import jobs
+		var existingDatasetJobs int64
 		if db.Model(&model.ImportJob{}).
 			Where("filename LIKE ? AND status IN ?", "datasets/%", []string{service.ImportStatusPending, service.ImportStatusRunning}).
 			Count(&existingDatasetJobs).Error != nil || existingDatasetJobs > 0 {
+			return
+		}
+
+		// Check if dataset files exist
+		dsPath := "./datasets"
+		matches, err := filepath.Glob(filepath.Join(dsPath, "*.xlsx"))
+		if err != nil || len(matches) == 0 {
+			log.Println("No dataset files found in ./datasets directory")
 			return
 		}
 
@@ -68,7 +79,7 @@ func main() {
 			log.Printf("Dataset import could not start: %v", err)
 			return
 		}
-		log.Println("Started first-run citizen dataset import")
+		log.Println("Started dataset import for Excel files in ./datasets")
 	}()
 	auditSvc := service.NewAuditLogService(db)
 	reportSvc := service.NewReportService(db)
@@ -83,6 +94,8 @@ func main() {
 	importHandler := handler.NewImportHandler(importSvc, cfg.UploadDir, cfg.MaxUploadMB)
 	auditHandler := handler.NewAuditLogHandler(auditSvc)
 	reportHandler := handler.NewReportHandler(reportSvc)
+	wsHandler := handler.NewWebSocketHandler(wsManager)
+	citizenSyncHandler := handler.NewCitizenSyncHandler(service.NewCitizenSyncService(db, reportSvc, cfg.UploadDir))
 
 	r := gin.Default()
 
@@ -110,8 +123,8 @@ func main() {
 	})
 
 	// Serve React build dist folder (SPA)
-	r.Static("/assets", "./frontend/assets")
-	r.StaticFile("/index.html", "./frontend/index.html")
+	r.Static("/assets", "./frontend/dist/assets")
+	r.StaticFile("/index.html", "./frontend/dist/index.html")
 
 	// SPA routing - serve index.html for all non-API routes
 	r.NoRoute(func(c *gin.Context) {
@@ -123,7 +136,7 @@ func main() {
 			c.Next()
 		} else {
 			// Serve React SPA
-			c.File("./frontend/index.html")
+			c.File("./frontend/dist/index.html")
 		}
 	})
 
@@ -259,7 +272,19 @@ func main() {
 		reports.GET("citizens", middleware.RequirePermission("citizens:read", adminUnitSvc), reportHandler.ExportCitizens)
 		reports.GET("performance", middleware.RequirePermission("citizens:read", adminUnitSvc), reportHandler.PerformanceReport)
 		reports.GET("campaigns/:campaign_id", middleware.RequirePermission("campaigns:read", adminUnitSvc), reportHandler.CampaignReport)
+		reports.GET("progress/export/:campaign_id", middleware.RequirePermission("citizens:read", adminUnitSvc), citizenSyncHandler.ExportDailyProgressReport)
 	}
+
+	// Citizens Sync & Export
+	sync := protected.Group("sync")
+	{
+		sync.GET("citizens/export", middleware.RequirePermission("citizens:read", adminUnitSvc), citizenSyncHandler.ExportRegisteredCitizens)
+		sync.GET("events", citizenSyncHandler.GetSyncEvents)
+	}
+
+	// WebSocket (with auth)
+	protected.GET("/ws", wsHandler.HandleWebSocket)
+	v1.GET("/ws/url", middleware.RequireAuth(authSvc), wsHandler.GetWebSocketURL)
 
 	fmt.Printf("NVRCMS API starting on port %s (env: %s)\n", cfg.Port, cfg.Env)
 	if err := r.Run(":" + cfg.Port); err != nil {

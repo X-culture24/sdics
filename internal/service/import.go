@@ -214,49 +214,66 @@ func (s *ImportService) ingestRows(jobID uuid.UUID, rows []citizenRow, uploaderI
 	unitCache := make(map[string]uuid.UUID)
 	countyCache := make(map[string]*model.AdminUnit)
 
-	tx := s.db.Begin()
-	if tx.Error != nil {
-		s.markFailed(jobID, tx.Error.Error())
-		return
-	}
-
-	batch := make([]model.Citizen, 0, batchSize)
+	// Pre-load existing NIDs
 	var allNIDs []string
 	for _, r := range rows {
 		allNIDs = append(allNIDs, r.NationalID)
 	}
 
 	var existingNIDs []string
-	tx.Model(&model.Citizen{}).Where("national_id IN ?", allNIDs).Pluck("national_id", &existingNIDs)
+	s.db.Model(&model.Citizen{}).Where("national_id IN ?", allNIDs).Pluck("national_id", &existingNIDs)
 	existingSet := make(map[string]struct{}, len(existingNIDs))
 	for _, e := range existingNIDs {
 		existingSet[e] = struct{}{}
 	}
 
+	// CRITICAL FIX: Process each row in its own transaction
+	// This prevents ONE bad row from aborting the entire 164,000-row import
 	for _, r := range rows {
-		nid := utils.NormalizeNationalID(r.NationalID)
-		if !utils.ValidNationalID(nid) {
+		// Start a new transaction for EACH row
+		rowTx := s.db.Begin()
+		if rowTx.Error != nil {
+			fmt.Printf("[IMPORT ERROR] Row %d: Failed to begin transaction: %v\n", r.RowNum, rowTx.Error)
 			rejected++
-			continue
-		}
-		if _, dup := existingSet[nid]; dup {
-			rejected++
+			s.updateJobProgress(jobID, total, inserted, rejected)
 			continue
 		}
 
-		countyID, err := s.resolveOrCreateUnit(tx, 2, r.County, nil, countyCache, unitCache, "KE-"+strings.ToUpper(shortName(r.County)))
-		if err != nil || countyID == uuid.Nil {
+		nid := utils.NormalizeNationalID(r.NationalID)
+		if !utils.ValidNationalID(nid) {
+			fmt.Printf("[IMPORT SKIP] Row %d: Invalid NID '%s'\n", r.RowNum, r.NationalID)
+			rowTx.Rollback()
 			rejected++
+			s.updateJobProgress(jobID, total, inserted, rejected)
 			continue
 		}
-		districtID, err := s.resolveOrCreateUnit(tx, 3, r.District, &countyID, countyCache, unitCache, "")
-		if err != nil || districtID == uuid.Nil {
+		if _, dup := existingSet[nid]; dup {
+			fmt.Printf("[IMPORT SKIP] Row %d: Duplicate NID '%s'\n", r.RowNum, nid)
+			rowTx.Rollback()
 			rejected++
+			s.updateJobProgress(jobID, total, inserted, rejected)
+			continue
+		}
+
+		countyID, err := s.resolveOrCreateUnit(rowTx, 2, r.County, nil, countyCache, unitCache, "KE-"+strings.ToUpper(shortName(r.County)))
+		if err != nil || countyID == uuid.Nil {
+			fmt.Printf("[IMPORT SKIP] Row %d: County '%s' failed: %v\n", r.RowNum, r.County, err)
+			rowTx.Rollback()
+			rejected++
+			s.updateJobProgress(jobID, total, inserted, rejected)
+			continue
+		}
+		districtID, err := s.resolveOrCreateUnit(rowTx, 3, r.District, &countyID, countyCache, unitCache, "")
+		if err != nil || districtID == uuid.Nil {
+			fmt.Printf("[IMPORT SKIP] Row %d: District '%s' failed: %v\n", r.RowNum, r.District, err)
+			rowTx.Rollback()
+			rejected++
+			s.updateJobProgress(jobID, total, inserted, rejected)
 			continue
 		}
 		var divisionID *uuid.UUID
 		if strings.TrimSpace(r.Division) != "" {
-			id, err := s.resolveOrCreateUnit(tx, 4, r.Division, &districtID, countyCache, unitCache, "")
+			id, err := s.resolveOrCreateUnit(rowTx, 4, r.Division, &districtID, countyCache, unitCache, "")
 			if err == nil && id != uuid.Nil {
 				divisionID = &id
 			}
@@ -267,7 +284,7 @@ func (s *ImportService) ingestRows(jobID uuid.UUID, rows []citizenRow, uploaderI
 			if divisionID != nil {
 				parent = *divisionID
 			}
-			id, err := s.resolveOrCreateUnit(tx, 5, r.Location, &parent, countyCache, unitCache, "")
+			id, err := s.resolveOrCreateUnit(rowTx, 5, r.Location, &parent, countyCache, unitCache, "")
 			if err == nil && id != uuid.Nil {
 				locationID = &id
 			}
@@ -278,7 +295,7 @@ func (s *ImportService) ingestRows(jobID uuid.UUID, rows []citizenRow, uploaderI
 			if locationID != nil {
 				parent = *locationID
 			}
-			id, err := s.resolveOrCreateUnit(tx, 6, r.SubLoc, &parent, countyCache, unitCache, "")
+			id, err := s.resolveOrCreateUnit(rowTx, 6, r.SubLoc, &parent, countyCache, unitCache, "")
 			if err == nil && id != uuid.Nil {
 				subLocID = &id
 			}
@@ -289,7 +306,7 @@ func (s *ImportService) ingestRows(jobID uuid.UUID, rows []citizenRow, uploaderI
 			if subLocID != nil {
 				parent = *subLocID
 			}
-			id, err := s.resolveOrCreateUnit(tx, 7, r.Village, &parent, countyCache, unitCache, "")
+			id, err := s.resolveOrCreateUnit(rowTx, 7, r.Village, &parent, countyCache, unitCache, "")
 			if err == nil && id != uuid.Nil {
 				villageID = &id
 			}
@@ -321,36 +338,33 @@ func (s *ImportService) ingestRows(jobID uuid.UUID, rows []citizenRow, uploaderI
 			UpdatedBy:          &uploaderID,
 		}
 		if c.FullName == "" {
+			fmt.Printf("[IMPORT SKIP] Row %d: Missing full name\n", r.RowNum)
+			rowTx.Rollback()
 			rejected++
+			s.updateJobProgress(jobID, total, inserted, rejected)
 			continue
 		}
-		batch = append(batch, c)
-		existingSet[nid] = struct{}{}
 
-		if len(batch) >= batchSize {
-			if err := tx.Create(&batch).Error; err != nil {
-				tx.Rollback()
-				s.markFailed(jobID, "bulk insert error: "+err.Error())
-				return
-			}
-			inserted += len(batch)
-			batch = batch[:0]
+		// Insert this single citizen
+		if err := rowTx.Create(&c).Error; err != nil {
+			fmt.Printf("[IMPORT ERROR] Row %d: NID=%s Name=%s Error: %v\n", r.RowNum, nid, c.FullName, err)
+			rowTx.Rollback()
+			rejected++
 			s.updateJobProgress(jobID, total, inserted, rejected)
+			continue
 		}
-	}
 
-	if len(batch) > 0 {
-		if err := tx.Create(&batch).Error; err != nil {
-			tx.Rollback()
-			s.markFailed(jobID, "bulk insert error: "+err.Error())
-			return
+		// Commit this row's transaction
+		if err := rowTx.Commit().Error; err != nil {
+			fmt.Printf("[IMPORT ERROR] Row %d: Commit failed: %v\n", r.RowNum, err)
+			rejected++
+			s.updateJobProgress(jobID, total, inserted, rejected)
+			continue
 		}
-		inserted += len(batch)
-	}
 
-	if err := tx.Commit().Error; err != nil {
-		s.markFailed(jobID, err.Error())
-		return
+		inserted++
+		existingSet[nid] = struct{}{}
+		s.updateJobProgress(jobID, total, inserted, rejected)
 	}
 
 	s.markCompleted(jobID, total, inserted, rejected)

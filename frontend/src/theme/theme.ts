@@ -34,39 +34,69 @@ export const theme = createTheme({
     divider: '#E5E7EB',
   },
   typography: {
-    fontFamily: '"IBM Plex Sans", "Roboto", sans-serif',
+    fontFamily: [
+      'Inter',
+      '-apple-system',
+      'BlinkMacSystemFont',
+      '"Segoe UI"',
+      'Roboto',
+      'Oxygen',
+      'Ubuntu',
+      'Cantarell',
+      '"Helvetica Neue"',
+      'sans-serif',
+    ].join(','),
     h1: {
       fontSize: '32px',
       fontWeight: 600,
       lineHeight: 1.3,
+      fontFamily: 'Inter, sans-serif',
     },
     h2: {
       fontSize: '24px',
       fontWeight: 600,
       lineHeight: 1.35,
+      fontFamily: 'Inter, sans-serif',
     },
     h3: {
       fontSize: '20px',
       fontWeight: 600,
       lineHeight: 1.4,
+      fontFamily: 'Inter, sans-serif',
     },
     h4: {
       fontSize: '16px',
       fontWeight: 600,
       lineHeight: 1.5,
+      fontFamily: 'Inter, sans-serif',
+    },
+    h5: {
+      fontSize: '14px',
+      fontWeight: 600,
+      lineHeight: 1.5,
+      fontFamily: 'Inter, sans-serif',
+    },
+    h6: {
+      fontSize: '12px',
+      fontWeight: 600,
+      lineHeight: 1.5,
+      fontFamily: 'Inter, sans-serif',
     },
     body1: {
       fontSize: '14px',
       lineHeight: 1.5,
+      fontFamily: 'Inter, sans-serif',
     },
     body2: {
       fontSize: '12px',
       lineHeight: 1.5,
+      fontFamily: 'Inter, sans-serif',
     },
     button: {
       fontSize: '14px',
       fontWeight: 600,
       textTransform: 'none',
+      fontFamily: 'Inter, sans-serif',
     },
   },
   spacing: 8,
@@ -74,6 +104,19 @@ export const theme = createTheme({
     borderRadius: 12,
   },
   components: {
+    MuiCssBaseline: {
+      styleOverrides: {
+        html: {
+          fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+        },
+        body: {
+          fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+        },
+        '*': {
+          fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+        },
+      },
+    },
     MuiCard: {
       styleOverrides: {
         root: {
@@ -89,6 +132,7 @@ export const theme = createTheme({
           padding: '10px 16px',
           fontWeight: 600,
           textTransform: 'none',
+          fontFamily: 'Inter, sans-serif',
         },
         contained: {
           boxShadow: 'none',
@@ -106,7 +150,15 @@ export const theme = createTheme({
         root: {
           '& .MuiOutlinedInput-root': {
             borderRadius: 8,
+            fontFamily: 'Inter, sans-serif',
           },
+        },
+      },
+    },
+    MuiSelect: {
+      styleOverrides: {
+        root: {
+          fontFamily: 'Inter, sans-serif',
         },
       },
     },
@@ -124,6 +176,13 @@ export const theme = createTheme({
         paper: {
           backgroundColor: '#FFFFFF',
           borderRight: '1px solid #E5E7EB',
+        },
+      },
+    },
+    MuiTypography: {
+      styleOverrides: {
+        root: {
+          fontFamily: 'Inter, sans-serif',
         },
       },
     },

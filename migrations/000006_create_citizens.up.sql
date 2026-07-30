@@ -17,7 +17,7 @@ take a look at the project first we have a readCREATE TABLE citizens (
     created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     CONSTRAINT chk_gender CHECK (gender IN ('Male','Female','Other')),
-    CONSTRAINT chk_reg_status CHECK (registration_status IN ('Unregistered','Registered'))
+    CONSTRAINT chk_reg_status CHECK (registration_status IN ('Unregistered','Registered','Pending','Ineligible'))
 );
 
 CREATE INDEX idx_citizens_national_id         ON citizens(national_id);

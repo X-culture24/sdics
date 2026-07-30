@@ -7,11 +7,10 @@ import { queryClient } from '@/lib/queryClient';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import RootLayout from '@/layouts/RootLayout';
 import Login from '@/features/authentication/pages/Login';
-import Dashboard from '@/features/dashboard/pages/Dashboard';
+import DashboardPage from '@/features/dashboard/pages/DashboardPage';
 import Citizens from '@/features/citizens/pages/CitizensPage';
 import Campaigns from '@/features/campaigns/pages/CampaignsPage';
 import Reports from '@/features/reports/pages/ReportsPage';
-import Imports from '@/features/imports/pages/ImportsPage';
 import Settings from '@/features/settings/pages/Settings';
 
 export default function App() {
@@ -29,11 +28,10 @@ export default function App() {
                 </ProtectedRoute>
               }
             >
-              <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/citizens" element={<Citizens />} />
               <Route path="/campaigns" element={<Campaigns />} />
               <Route path="/reports" element={<Reports />} />
-              <Route path="/imports" element={<Imports />} />
               <Route path="/settings" element={<Settings />} />
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
             </Route>

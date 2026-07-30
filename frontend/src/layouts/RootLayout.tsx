@@ -1,16 +1,14 @@
 import { useState } from 'react';
-import { Box, AppBar, Toolbar, Drawer, List, ListItem, ListItemButton, ListItemIcon, ListItemText, Avatar, Menu, MenuItem, Divider, Typography, IconButton } from '@mui/material';
-import { useNavigate, Outlet } from 'react-router-dom';
-import { Menu as MenuIcon, Logout as LogoutIcon, Dashboard as DashboardIcon, People as PeopleIcon, Campaign as CampaignIcon, BarChart as ReportsIcon, Upload as ImportsIcon, Settings as SettingsIcon } from '@mui/icons-material';
+import { Box, AppBar, Toolbar, Avatar, Menu, MenuItem, Divider, Typography, Tabs, Tab } from '@mui/material';
+import { useNavigate, Outlet, useLocation } from 'react-router-dom';
+import { Logout as LogoutIcon, Dashboard as DashboardIcon, People as CitizensIcon, Campaign as CampaignIcon, BarChart as ReportsIcon, Settings as SettingsIcon } from '@mui/icons-material';
 import { useAuthStore } from '@/features/authentication/store/authStore';
 import { authService } from '@/services/api/authService';
 
-const DRAWER_WIDTH = 260;
-
 export default function RootLayout() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, logout } = useAuthStore();
-  const [drawerOpen, setDrawerOpen] = useState(true);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
 
   const handleLogout = async () => {
@@ -23,107 +21,185 @@ export default function RootLayout() {
     navigate('/login');
   };
 
-  const menuItems = [
+  const navItems = [
     { label: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
-    { label: 'Citizens', icon: <PeopleIcon />, path: '/citizens' },
     { label: 'Campaigns', icon: <CampaignIcon />, path: '/campaigns' },
     { label: 'Reports', icon: <ReportsIcon />, path: '/reports' },
-    { label: 'Imports', icon: <ImportsIcon />, path: '/imports' },
-    { label: 'Settings', icon: <SettingsIcon />, path: '/settings' },
   ];
 
+  const currentTabIndex = navItems.findIndex(item => location.pathname === item.path);
+  const activeTabIndex = currentTabIndex >= 0 ? currentTabIndex : 0;
+
+  const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
+    navigate(navItems[newValue].path);
+  };
+
   return (
-    <Box sx={{ display: 'flex' }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', bgcolor: '#F6F8FB' }}>
+      {/* Top AppBar */}
       <AppBar
         position="fixed"
         sx={{
-          zIndex: (theme) => theme.zIndex.drawer + 1,
           backgroundColor: '#FFFFFF',
           color: '#1F2937',
-          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.08)',
           borderBottom: '1px solid #E5E7EB',
+          zIndex: 1200,
         }}
       >
-        <Toolbar>
-          <IconButton onClick={() => setDrawerOpen(!drawerOpen)} sx={{ mr: 2 }}>
-            <MenuIcon />
-          </IconButton>
-          <Typography variant="h4" sx={{ fontWeight: 700, color: '#0056A6', flexGrow: 1 }}>
-            SDICS
-          </Typography>
-          <Box onClick={(e) => setAnchorEl(e.currentTarget)} sx={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Avatar sx={{ width: 36, height: 36, bgcolor: '#0056A6' }}>
-              {user?.fullName.charAt(0).toUpperCase()}
+        <Toolbar sx={{ justifyContent: 'space-between', px: 3 }}>
+          {/* Logo & Branding */}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <Box
+              sx={{
+                width: 40,
+                height: 40,
+                borderRadius: '8px',
+                background: 'linear-gradient(135deg, #0056A6 0%, #004B91 100%)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#FFF',
+                fontWeight: 700,
+                fontSize: '18px',
+              }}
+            >
+              S
+            </Box>
+            <Typography
+              variant="h5"
+              sx={{
+                fontWeight: 700,
+                background: 'linear-gradient(135deg, #0056A6 0%, #2563EB 100%)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                backgroundClip: 'text',
+                letterSpacing: '-0.5px',
+              }}
+            >
+              SDICS
+            </Typography>
+          </Box>
+
+          {/* User Menu */}
+          <Box
+            onClick={(e) => setAnchorEl(e.currentTarget)}
+            sx={{
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1.5,
+              p: 1,
+              borderRadius: '8px',
+              '&:hover': { backgroundColor: '#F3F4F6' },
+              transition: 'background-color 0.2s',
+            }}
+          >
+            <Avatar sx={{ width: 36, height: 36, bgcolor: '#0056A6', fontWeight: 600 }}>
+              {user?.fullName?.charAt(0)?.toUpperCase() || 'U'}
             </Avatar>
             <Box>
-              <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                {user?.fullName}
+              <Typography variant="body2" sx={{ fontWeight: 600, color: '#1F2937' }}>
+                {user?.fullName || 'User'}
               </Typography>
               <Typography variant="caption" sx={{ color: '#6B7280' }}>
-                {user?.role?.name}
+                {user?.role?.name || 'Admin'}
               </Typography>
             </Box>
           </Box>
+
           <Menu
             anchorEl={anchorEl}
             open={!!anchorEl}
             onClose={() => setAnchorEl(null)}
+            PaperProps={{
+              sx: {
+                mt: 1,
+                boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
+                borderRadius: '8px',
+              },
+            }}
           >
-            <MenuItem onClick={() => navigate('/settings')}>
-              <SettingsIcon sx={{ mr: 1 }} />
-              Profile Settings
+            <MenuItem
+              onClick={() => {
+                navigate('/settings');
+                setAnchorEl(null);
+              }}
+              sx={{ py: 1 }}
+            >
+              <SettingsIcon sx={{ mr: 1.5, fontSize: 20 }} />
+              <Typography variant="body2">Profile Settings</Typography>
             </MenuItem>
             <Divider />
-            <MenuItem onClick={handleLogout}>
-              <LogoutIcon sx={{ mr: 1 }} />
-              Logout
+            <MenuItem onClick={handleLogout} sx={{ py: 1 }}>
+              <LogoutIcon sx={{ mr: 1.5, fontSize: 20 }} />
+              <Typography variant="body2">Logout</Typography>
             </MenuItem>
           </Menu>
         </Toolbar>
+
+        {/* Tab Navigation */}
+        <Box
+          sx={{
+            backgroundColor: '#FFFFFF',
+            borderBottom: '1px solid #E5E7EB',
+            px: 3,
+          }}
+        >
+          <Tabs
+            value={activeTabIndex}
+            onChange={handleTabChange}
+            sx={{
+              '& .MuiTabs-indicator': {
+                backgroundColor: '#0056A6',
+                height: '3px',
+              },
+              '& .MuiTab-root': {
+                fontWeight: 500,
+                fontSize: '14px',
+                color: '#6B7280',
+                textTransform: 'none',
+                minWidth: 'auto',
+                px: 2,
+                py: 1.5,
+                display: 'flex',
+                flexDirection: 'row',
+                gap: 1,
+                '&.Mui-selected': {
+                  color: '#0056A6',
+                  fontWeight: 600,
+                },
+                '&:hover': {
+                  color: '#0056A6',
+                  backgroundColor: '#F9FAFB',
+                },
+              },
+            }}
+          >
+            {navItems.map((item) => (
+              <Tab
+                key={item.path}
+                icon={item.icon}
+                iconPosition="start"
+                label={item.label}
+              />
+            ))}
+          </Tabs>
+        </Box>
       </AppBar>
 
-      <Drawer
-        variant="permanent"
-        sx={{
-          width: drawerOpen ? DRAWER_WIDTH : 0,
-          flexShrink: 0,
-          [`& .MuiDrawer-paper`]: {
-            width: DRAWER_WIDTH,
-            boxSizing: 'border-box',
-            mt: 8,
-            transition: 'width 0.3s ease',
-          },
-          transition: 'width 0.3s ease',
-        }}
-      >
-        <List sx={{ pt: 2 }}>
-          {menuItems.map((item) => (
-            <ListItem key={item.path} disablePadding>
-              <ListItemButton
-                onClick={() => navigate(item.path)}
-                sx={{
-                  '&:hover': { backgroundColor: '#EAF4FF' },
-                  borderRadius: '8px',
-                  mx: 1,
-                  mb: 0.5,
-                }}
-              >
-                <ListItemIcon sx={{ color: '#0056A6' }}>{item.icon}</ListItemIcon>
-                <ListItemText primary={item.label} />
-              </ListItemButton>
-            </ListItem>
-          ))}
-        </List>
-      </Drawer>
-
+      {/* Main Content Area - Full Width */}
       <Box
         component="main"
         sx={{
           flexGrow: 1,
-          p: 3,
-          mt: 8,
+          mt: '120px', // AppBar height + Tabs height
+          px: 4,
+          py: 3,
           backgroundColor: '#F6F8FB',
-          minHeight: '100vh',
+          width: '100%',
+          maxWidth: '100%',
+          overflowY: 'auto',
         }}
       >
         <Outlet />
