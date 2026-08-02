@@ -86,8 +86,43 @@ jobs:
           # Copy frontend dist
           scp -r -o StrictHostKeyChecking=accept-new frontend/dist/* ${{ secrets.DO_USER }}@${{ secrets.DO_HOST }}:$DEPLOY_DIR/frontend/dist/
           
-          # Copy .env file (production config)
-          scp -o StrictHostKeyChecking=accept-new .env ${{ secrets.DO_USER }}@${{ secrets.DO_HOST }}:$DEPLOY_DIR/.env
+          # Create .env file from environment variables on server
+          ssh -o StrictHostKeyChecking=accept-new ${{ secrets.DO_USER }}@${{ secrets.DO_HOST }} << 'ENVEOF'
+          cat > /home/lawrence/nvrcms/.env << 'EOF'
+          # Database
+          DB_HOST=localhost
+          DB_PORT=5432
+          DB_NAME=sdic
+          DB_USER=sdic_agent
+          DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+          DB_SSLMODE=disable
+          
+          # JWT
+          JWT_SECRET=${{ secrets.JWT_SECRET }}
+          JWT_EXPIRY_MINUTES=15
+          REFRESH_SECRET=${{ secrets.REFRESH_SECRET }}
+          REFRESH_EXPIRY_DAYS=7
+          
+          # Server
+          PORT=8080
+          ENV=production
+          ALLOWED_ORIGINS=https://sdics.tech,http://sdics.tech,http://localhost:3000,http://localhost:5173
+          
+          # Rate Limiting
+          RATE_LIMIT_UNAUTH=20
+          RATE_LIMIT_AUTH=100
+          
+          # File Storage
+          UPLOAD_DIR=./uploads
+          MAX_UPLOAD_MB=50
+          
+          # Email (for password reset)
+          SMTP_HOST=smtp.gmail.com
+          SMTP_PORT=587
+          SMTP_USER=your_email@gmail.com
+          SMTP_PASS=your_app_password_here
+          EOF
+          ENVEOF
 
       - name: Configure and Start
         run: |
