@@ -85,6 +85,9 @@ jobs:
           
           # Copy frontend dist
           scp -r -o StrictHostKeyChecking=accept-new frontend/dist/* ${{ secrets.DO_USER }}@${{ secrets.DO_HOST }}:$DEPLOY_DIR/frontend/dist/
+          
+          # Copy .env file (production config)
+          scp -o StrictHostKeyChecking=accept-new .env ${{ secrets.DO_USER }}@${{ secrets.DO_HOST }}:$DEPLOY_DIR/.env
 
       - name: Configure and Start
         run: |
@@ -92,11 +95,6 @@ jobs:
           set -e
           
           DEPLOY_DIR="/home/lawrence/nvrcms"
-          
-          # Preserve existing .env if present, only create from example if missing
-          if [ ! -f "$DEPLOY_DIR/.env" ]; then
-            cp "$DEPLOY_DIR/.env.example" "$DEPLOY_DIR/.env"
-          fi
           
           # Configure Nginx
           echo "⚙️ Configuring Nginx..."
