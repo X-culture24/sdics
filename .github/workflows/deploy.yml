@@ -1,4 +1,4 @@
-name: Build and Deploy to sdics.tech
+name: Build and Deploy to sdics.tech (Git-based)
 
 on:
   push:
@@ -6,39 +6,13 @@ on:
       - main
 
 jobs:
-  build-and-deploy:
-    name: Build and Deploy
+  deploy:
+    name: Deploy via Git Clone
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      # ── Go API ─────────────────────────────────────────────────────────────
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: "1.22"
-
-      - name: Download Go dependencies
-        run: go mod download
-
-      - name: Build binary (linux/amd64)
-        run: GOOS=linux GOARCH=amd64 go build -o bin/nvrcms-api ./cmd/api
-
-      # ── Frontend ──────────────────────────────────────────────────────────
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-
-      - name: Install frontend dependencies
-        run: npm install
-        working-directory: frontend
-
-      - name: Build React frontend
-        run: npm run build
-        working-directory: frontend
 
       # ── SSH Setup ──────────────────────────────────────────────────────────
       - name: Setup SSH Key
@@ -48,80 +22,200 @@ jobs:
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H sdics.tech >> ~/.ssh/known_hosts 2>/dev/null || true
 
-      # ── Deploy React Frontend ──────────────────────────────────────────────
-      - name: Deploy React frontend
-        run: bash scripts/deploy-react-production.sh
-        env:
-          REMOTE_USER: root
-          REMOTE_HOST: sdics.tech
-
-      # ── Deploy API Binary ──────────────────────────────────────────────────
-      - name: Deploy API binary
+      # ── Deploy via Git on Server ────────────────────────────────────────────
+      - name: Deploy via Git Clone
         run: |
-          scp bin/nvrcms-api root@sdics.tech:/home/lawrence/nvrcms/bin/
-          
-          ssh root@sdics.tech 'bash -s' << 'API_DEPLOY'
+          ssh -o StrictHostKeyChecking=accept-new root@sdics.tech 'bash -s' << 'DEPLOY_SCRIPT'
+          #!/bin/bash
           set -e
           
-          echo "🛑 Stopping nvrcms-api service..."
-          systemctl stop nvrcms-api || true
-          sleep 2
+          DEPLOY_DIR="/home/lawrence/nvrcms"
+          GIT_REPO="https://github.com/X-culture24/sdics.git"
+          GIT_BRANCH="main"
           
-          echo "🔧 Setting permissions..."
-          chmod 755 /home/lawrence/nvrcms/bin/nvrcms-api
-          chown lawrence:lawrence /home/lawrence/nvrcms/bin/nvrcms-api
+          echo "================================================"
+          echo "🔄 GIT-BASED DEPLOYMENT"
+          echo "================================================"
+          echo ""
           
-          echo "▶️  Starting nvrcms-api service..."
-          systemctl start nvrcms-api
+          # Backup
+          if [ -d "$DEPLOY_DIR" ]; then
+            echo "📦 Creating backup..."
+            BACKUP_DIR="/home/lawrence/nvrcms-backup-$(date +%s)"
+            cp -r "$DEPLOY_DIR" "$BACKUP_DIR"
+            echo "  ✅ Backup: $BACKUP_DIR"
+            
+            echo ""
+            echo "🛑 Stopping services..."
+            systemctl stop nvrcms-api || true
+            sleep 1
+            
+            echo "🗑️  Removing old deployment..."
+            rm -rf "$DEPLOY_DIR"
+          fi
+          
+          echo ""
+          echo "📥 Cloning repository..."
+          git clone --branch "$GIT_BRANCH" "$GIT_REPO" "$DEPLOY_DIR"
+          echo "  ✅ Repository cloned"
+          
+          cd "$DEPLOY_DIR"
+          
+          # Build Go
+          echo ""
+          echo "🔨 Building Go API..."
+          go mod download
+          GOOS=linux GOARCH=amd64 go build -o bin/nvrcms-api ./cmd/api
+          chmod 755 bin/nvrcms-api
+          echo "  ✅ Binary built"
+          
+          # Build React
+          echo ""
+          echo "⚛️  Building React frontend..."
+          cd frontend
+          npm install --legacy-peer-deps
+          npm run build
+          cd ..
+          echo "  ✅ Frontend built"
+          
+          # Setup
+          echo ""
+          echo "⚙️  Configuring..."
+          mkdir -p bin logs uploads datasets
+          chown -R lawrence:lawrence bin logs uploads
+          
+          # Copy .env if needed
+          if [ ! -f .env ]; then
+            cp .env.example .env
+            echo "  ℹ️  Created .env from .env.example - update secrets manually"
+          fi
+          
+          # Nginx
+          echo "  Configuring Nginx..."
+          sudo tee /etc/nginx/sites-available/sdics.tech > /dev/null << 'NGINX_CONFIG'
+          server {
+              listen 80;
+              listen [::]:80;
+              server_name sdics.tech www.sdics.tech;
+              return 301 https://$server_name$request_uri;
+          }
+          
+          server {
+              listen 443 ssl http2;
+              listen [::]:443 ssl http2;
+              server_name sdics.tech www.sdics.tech;
+          
+              ssl_certificate /etc/letsencrypt/live/sdics.tech/fullchain.pem;
+              ssl_certificate_key /etc/letsencrypt/live/sdics.tech/privkey.pem;
+          
+              add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+              add_header X-Content-Type-Options "nosniff" always;
+              add_header X-Frame-Options "DENY" always;
+          
+              client_max_body_size 55M;
+              root $DEPLOY_DIR/frontend/dist;
+              index index.html;
+          
+              location / {
+                  try_files $uri $uri/ /index.html;
+              }
+          
+              location /api/ {
+                  proxy_pass http://127.0.0.1:8080;
+                  proxy_http_version 1.1;
+                  proxy_set_header Upgrade $http_upgrade;
+                  proxy_set_header Connection 'upgrade';
+                  proxy_set_header Host $host;
+                  proxy_set_header X-Real-IP $remote_addr;
+                  proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                  proxy_set_header X-Forwarded-Proto $scheme;
+                  proxy_cache_bypass $http_upgrade;
+                  proxy_read_timeout 300s;
+              }
+          
+              location /ws {
+                  proxy_pass http://127.0.0.1:8080;
+                  proxy_http_version 1.1;
+                  proxy_set_header Upgrade $http_upgrade;
+                  proxy_set_header Connection "Upgrade";
+                  proxy_set_header Host $host;
+                  proxy_read_timeout 86400s;
+              }
+          
+              location /swagger {
+                  proxy_pass http://127.0.0.1:8080;
+              }
+          
+              location /health {
+                  proxy_pass http://127.0.0.1:8080;
+                  access_log off;
+              }
+          
+              location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+                  expires 365d;
+                  add_header Cache-Control "public, immutable";
+              }
+          
+              location = /index.html {
+                  add_header Cache-Control "public, max-age=0, must-revalidate";
+              }
+          }
+          NGINX_CONFIG
+          
+          sudo nginx -t
+          
+          # Systemd service
+          echo "  Creating systemd service..."
+          sudo tee /etc/systemd/system/nvrcms-api.service > /dev/null << 'SERVICE_CONFIG'
+          [Unit]
+          Description=NVRCMS API Server
+          After=network.target postgresql.service
+          
+          [Service]
+          Type=simple
+          User=lawrence
+          WorkingDirectory=$DEPLOY_DIR
+          EnvironmentFile=$DEPLOY_DIR/.env
+          ExecStart=$DEPLOY_DIR/bin/nvrcms-api
+          Restart=always
+          RestartSec=5
+          StandardOutput=append:$DEPLOY_DIR/logs/api.log
+          StandardError=append:$DEPLOY_DIR/logs/api-error.log
+          
+          [Install]
+          WantedBy=multi-user.target
+          SERVICE_CONFIG
+          
+          sudo systemctl daemon-reload
+          
+          # Start services
+          echo ""
+          echo "▶️  Starting services..."
+          sudo systemctl start nvrcms-api
           sleep 3
           
-          echo "✅ API deployed and running"
-          API_DEPLOY
-
-      # ── Copy supporting files ──────────────────────────────────────────────
-      - name: Copy datasets and migrations
-        run: |
-          ssh root@sdics.tech "mkdir -p /home/lawrence/nvrcms/migrations /home/lawrence/nvrcms/datasets /home/lawrence/nvrcms/scripts"
-          scp -r datasets/. root@sdics.tech:/home/lawrence/nvrcms/datasets/
-          scp -r migrations/. root@sdics.tech:/home/lawrence/nvrcms/migrations/
-          scp scripts/migrate.sh scripts/seed.sql root@sdics.tech:/home/lawrence/nvrcms/scripts/
-
-      # ── Verify deployment ──────────────────────────────────────────────────
-      - name: Verify deployment
-        run: |
-          ssh root@sdics.tech 'bash -s' << 'VERIFY'
-          set -e
+          if sudo systemctl is-active --quiet nvrcms-api; then
+            echo "  ✅ API running"
+          else
+            echo "  ❌ API failed"
+            sudo journalctl -u nvrcms-api -n 20
+            exit 1
+          fi
           
-          echo ""
-          echo "================================================"
-          echo "✅ DEPLOYMENT VERIFICATION"
-          echo "================================================"
-          echo ""
+          sudo systemctl reload nginx
+          echo "  ✅ Nginx configured"
           
-          echo "🔍 Services status:"
+          # Verify
+          echo ""
+          echo "✅ DEPLOYMENT COMPLETE"
+          echo ""
+          echo "Services:"
           systemctl is-active --quiet nginx && echo "  ✅ Nginx: running" || echo "  ❌ Nginx: stopped"
-          systemctl is-active --quiet nvrcms-api && echo "  ✅ NVRCMS API: running" || echo "  ❌ NVRCMS API: stopped"
-          
-          echo ""
-          echo "🔗 Testing endpoints..."
-          
-          if curl -s http://localhost:8080/health | grep -q '"status":"ok"'; then
-            echo "  ✅ API health: OK"
-          else
-            echo "  ⚠️  API health: checking"
-          fi
-          
-          echo ""
-          echo "📊 Frontend files:"
-          if [ -f /home/lawrence/nvrcms/frontend/index.html ]; then
-            echo "  ✅ React app deployed ($(find /home/lawrence/nvrcms/frontend -type f | wc -l) files)"
-          else
-            echo "  ❌ Frontend index.html not found"
-          fi
+          systemctl is-active --quiet nvrcms-api && echo "  ✅ API: running" || echo "  ❌ API: stopped"
           
           echo ""
           echo "🌐 Application ready at:"
           echo "  • https://sdics.tech"
           echo "  • https://sdics.tech/api/v1"
-          echo ""
-          VERIFY
+          
+          DEPLOY_SCRIPT
