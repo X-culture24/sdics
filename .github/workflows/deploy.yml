@@ -6,12 +6,34 @@ on:
       - main
 
 jobs:
-  deploy:
+  build-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Build API
+        run: |
+          mkdir -p bin
+          go build -o bin/nvrcms-api ./cmd/api
+
+      - name: Build Frontend
+        run: |
+          cd frontend
+          npm install --legacy-peer-deps
+          npm run build
+          cd ..
 
       - name: Setup SSH
         run: |
@@ -26,7 +48,6 @@ jobs:
           set -e
           
           DEPLOY_DIR="/home/lawrence/nvrcms"
-          GO_PATH="/usr/local/go/bin"
           
           echo "🔄 Starting deployment..."
           
@@ -39,38 +60,38 @@ jobs:
             rm -rf "$DEPLOY_DIR"
           fi
           
-          # Install Go if not present
-          if [ ! -d "/usr/local/go" ]; then
-            echo "📦 Installing Go 1.25..."
-            cd /tmp
-            wget -q https://go.dev/dl/go1.25.0.linux-amd64.tar.gz
-            sudo tar -C /usr/local -xzf go1.25.0.linux-amd64.tar.gz
-            rm -f go1.25.0.linux-amd64.tar.gz
-          fi
-          
-          # Clone repository
+          # Clone repository (without building)
           echo "📥 Cloning repository..."
           git clone https://github.com/X-culture24/sdics.git "$DEPLOY_DIR"
           cd "$DEPLOY_DIR"
           
-          # Build API
-          echo "🔨 Building API..."
-          mkdir -p bin
-          $GO_PATH/go build -o bin/nvrcms-api ./cmd/api
-          chmod 755 bin/nvrcms-api
-          
-          # Build Frontend
-          echo "⚛️ Building Frontend..."
-          cd frontend
-          npm install --legacy-peer-deps
-          npm run build
-          cd ..
-          
           # Setup directories and config
-          mkdir -p logs uploads
+          mkdir -p bin logs uploads
           if [ ! -f .env ]; then
             cp .env.example .env
           fi
+          
+          echo "✅ Deployment files ready"
+          EOF
+
+      - name: Deploy Binary and Frontend
+        run: |
+          DEPLOY_DIR="/home/lawrence/nvrcms"
+          
+          echo "📦 Uploading built artifacts..."
+          # Copy pre-built binary
+          scp -o StrictHostKeyChecking=accept-new bin/nvrcms-api ${{ secrets.DO_USER }}@${{ secrets.DO_HOST }}:$DEPLOY_DIR/bin/
+          ssh -o StrictHostKeyChecking=accept-new ${{ secrets.DO_USER }}@${{ secrets.DO_HOST }} chmod +x $DEPLOY_DIR/bin/nvrcms-api
+          
+          # Copy frontend dist
+          scp -r -o StrictHostKeyChecking=accept-new frontend/dist/* ${{ secrets.DO_USER }}@${{ secrets.DO_HOST }}:$DEPLOY_DIR/frontend/dist/
+
+      - name: Configure and Start
+        run: |
+          ssh -o StrictHostKeyChecking=accept-new ${{ secrets.DO_USER }}@${{ secrets.DO_HOST }} << 'EOF'
+          set -e
+          
+          DEPLOY_DIR="/home/lawrence/nvrcms"
           
           # Configure Nginx
           echo "⚙️ Configuring Nginx..."
