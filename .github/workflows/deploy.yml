@@ -26,7 +26,7 @@ jobs:
       - name: Build API
         run: |
           mkdir -p bin
-          go build -o bin/nvrcms-api ./cmd/api
+          go build -o bin/sdics_api ./cmd/api
 
       - name: Build Frontend
         run: |
@@ -80,8 +80,8 @@ jobs:
           
           echo "📦 Uploading built artifacts..."
           # Copy pre-built binary
-          scp -o StrictHostKeyChecking=accept-new bin/nvrcms-api ${{ secrets.DO_USER }}@${{ secrets.DO_HOST }}:$DEPLOY_DIR/bin/
-          ssh -o StrictHostKeyChecking=accept-new ${{ secrets.DO_USER }}@${{ secrets.DO_HOST }} chmod +x $DEPLOY_DIR/bin/nvrcms-api
+          scp -o StrictHostKeyChecking=accept-new bin/sdics_api ${{ secrets.DO_USER }}@${{ secrets.DO_HOST }}:$DEPLOY_DIR/bin/
+          ssh -o StrictHostKeyChecking=accept-new ${{ secrets.DO_USER }}@${{ secrets.DO_HOST }} chmod +x $DEPLOY_DIR/bin/sdics_api
           
           # Copy frontend dist
           scp -r -o StrictHostKeyChecking=accept-new frontend/dist/* ${{ secrets.DO_USER }}@${{ secrets.DO_HOST }}:$DEPLOY_DIR/frontend/dist/
@@ -172,14 +172,14 @@ jobs:
           echo "⚙️ Setting up systemd service..."
           sudo tee /etc/systemd/system/nvrcms-api.service > /dev/null << 'SERVICE'
           [Unit]
-          Description=NVRCMS API
+          Description=SDICS API
           After=network.target postgresql.service
           [Service]
           Type=simple
           User=lawrence
           WorkingDirectory=/home/lawrence/nvrcms
           EnvironmentFile=/home/lawrence/nvrcms/.env
-          ExecStart=/home/lawrence/nvrcms/bin/nvrcms-api
+          ExecStart=/home/lawrence/nvrcms/bin/sdics_api
           Restart=always
           RestartSec=5
           StandardOutput=append:/home/lawrence/nvrcms/logs/api.log
