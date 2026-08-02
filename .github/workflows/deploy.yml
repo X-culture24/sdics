@@ -93,6 +93,11 @@ jobs:
           
           DEPLOY_DIR="/home/lawrence/nvrcms"
           
+          # Preserve existing .env if present, only create from example if missing
+          if [ ! -f "$DEPLOY_DIR/.env" ]; then
+            cp "$DEPLOY_DIR/.env.example" "$DEPLOY_DIR/.env"
+          fi
+          
           # Configure Nginx
           echo "⚙️ Configuring Nginx..."
           sudo tee /etc/nginx/sites-available/sdics.tech > /dev/null << 'NGINX'
