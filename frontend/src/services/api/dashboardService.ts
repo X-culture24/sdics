@@ -10,6 +10,9 @@ const convertKPIs = (data: any): DashboardKPIs => ({
   overallProgress: data.overall_progress_percent ?? data.overallProgress ?? 0,
   campaignDaysRemaining: data.remaining_working_days ?? data.campaignDaysRemaining ?? 0,
   lastSyncTime: new Date().toISOString(),
+  datasetTotal: data.dataset_total ?? 0,
+  datasetRegistered: data.dataset_registered ?? 0,
+  datasetUnregistered: data.dataset_unregistered ?? 0,
 });
 
 const convertDistrictPerformance = (data: any[]): DistrictPerformance[] => {

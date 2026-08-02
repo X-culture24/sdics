@@ -111,6 +111,9 @@ export interface DashboardKPIs {
   overallProgress: number;
   campaignDaysRemaining: number;
   lastSyncTime: string;
+  datasetTotal?: number;
+  datasetRegistered?: number;
+  datasetUnregistered?: number;
 }
 
 export interface DistrictPerformance {

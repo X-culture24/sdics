@@ -24,9 +24,16 @@ function KPICard({ label, value, suffix = '' }: { label: string; value: number |
 
 export default function DashboardPage() {
   const [selectedCounty, setSelectedCounty] = useState<string>('')
+  const [selectedCampaign, setSelectedCampaign] = useState<string>('')
 
-  const normalizeCountyName = (value: string) =>
-    value?.toLowerCase().replace(/[-_\s]+/g, ' ').trim()
+  const normalizeCountyName = (value: string) => {
+    if (!value) return ''
+    return value
+      ?.toLowerCase()
+      .replace(/\s+/g, ' ')
+      .replace(/[-_]/g, ' ')
+      .trim()
+  }
 
   const { data: datasetUploads = [] } = useQuery({
     queryKey: ['dataset-uploads'],
@@ -71,10 +78,13 @@ export default function DashboardPage() {
   })
 
   const { data: kpis, isLoading: kpisLoading, refetch } = useQuery({
-    queryKey: ['dashboard-kpis', selectedCounty],
+    queryKey: ['dashboard-kpis', selectedCounty, selectedCampaign],
     queryFn: async () => {
       const response = await api.get('/dashboard/kpis', {
-        params: selectedCounty ? { admin_unit_id: selectedCounty } : {},
+        params: {
+          ...(selectedCounty ? { admin_unit_id: selectedCounty } : {}),
+          ...(selectedCampaign ? { campaign_id: selectedCampaign } : {}),
+        },
       })
       return response.data
     },

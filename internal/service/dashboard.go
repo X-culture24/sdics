@@ -31,6 +31,9 @@ type KPISummary struct {
 	TotalWorkingDays         int        `json:"total_working_days"`
 	ActiveCampaignID         *uuid.UUID `json:"active_campaign_id,omitempty"`
 	ActiveCampaignName       string     `json:"active_campaign_name,omitempty"`
+	DatasetTotal             int64      `json:"dataset_total"`
+	DatasetRegistered        int64      `json:"dataset_registered"`
+	DatasetUnregistered      int64      `json:"dataset_unregistered"`
 }
 
 func (s *DashboardService) GetKPIs(activeCampaignID *uuid.UUID, scopedUnits []uuid.UUID) (*KPISummary, error) {
@@ -67,6 +70,16 @@ func (s *DashboardService) GetKPIs(activeCampaignID *uuid.UUID, scopedUnits []uu
 		kpi.OverallProgressPercent = float64(kpi.RegisteredVoters) / float64(kpi.AdultPopulation) * 100
 	}
 
+	// Also fetch dataset summary
+	s.db.Model(&model.DatasetRecord{}).Count(&kpi.DatasetTotal)
+	s.db.Model(&model.DatasetRecord{}).
+		Where("LOWER(TRIM(COALESCE(registration_status, ''))) = ?", "registered").
+		Count(&kpi.DatasetRegistered)
+	kpi.DatasetUnregistered = kpi.DatasetTotal - kpi.DatasetRegistered
+	if kpi.DatasetUnregistered < 0 {
+		kpi.DatasetUnregistered = 0
+	}
+
 	today := utils.DateOnly(time.Now())
 	todayStr := utils.FormatDateOnly(today)
 
@@ -80,10 +93,16 @@ func (s *DashboardService) GetKPIs(activeCampaignID *uuid.UUID, scopedUnits []uu
 		kpi.TotalWorkingDays = cal.CountWorkingDaysInclusive(campaign.StartDate, campaign.EndDate)
 		kpi.RemainingWorkingDays = cal.RemainingWorkingDays(today, campaign.EndDate)
 
-		if campaign.Status == CampaignStatusActive && kpi.RemainingWorkingDays > 0 && kpi.NationalIDsNotRegistered > 0 {
-			kpi.TodaysTarget = kpi.NationalIDsNotRegistered / int64(kpi.RemainingWorkingDays)
+		// Use dataset unregistered for target calculation
+		totalUnregistered := kpi.DatasetUnregistered
+		if totalUnregistered == 0 {
+			totalUnregistered = kpi.NationalIDsNotRegistered
+		}
+
+		if campaign.Status == CampaignStatusActive && kpi.RemainingWorkingDays > 0 && totalUnregistered > 0 {
+			kpi.TodaysTarget = totalUnregistered / int64(kpi.RemainingWorkingDays)
 			if kpi.TodaysTarget <= 0 {
-				kpi.TodaysTarget = kpi.NationalIDsNotRegistered
+				kpi.TodaysTarget = totalUnregistered
 			}
 		}
 	}

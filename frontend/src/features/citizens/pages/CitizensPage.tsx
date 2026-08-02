@@ -11,8 +11,14 @@ export default function CitizensPage() {
   const [showImportDialog, setShowImportDialog] = useState(false)
   const queryClient = useQueryClient()
 
-  const normalizeCountyName = (value: string) =>
-    value?.toLowerCase().replace(/[-_\s]+/g, ' ').trim()
+  const normalizeCountyName = (value: string) => {
+    if (!value) return ''
+    return value
+      ?.toLowerCase()
+      .replace(/\s+/g, ' ')
+      .replace(/[-_]/g, ' ')
+      .trim()
+  }
 
   const { data: datasetUploads, isLoading: datasetUploadsLoading } = useQuery({
     queryKey: ['dataset-uploads'],
