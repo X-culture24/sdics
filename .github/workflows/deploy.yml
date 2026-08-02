@@ -1,4 +1,4 @@
-name: Build and Deploy to sdics.tech (Git-based)
+name: Build and Deploy to sdics.tech
 
 on:
   push:
@@ -14,6 +14,18 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # ── Setup Go ────────────────────────────────────────────────────────────
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+
+      # ── Setup Node.js ───────────────────────────────────────────────────────
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
       # ── SSH Setup ──────────────────────────────────────────────────────────
       - name: Setup SSH Key (DO_SSH_KEY)
         run: |
@@ -22,7 +34,7 @@ jobs:
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H ${{ secrets.DO_HOST }} >> ~/.ssh/known_hosts 2>/dev/null || true
 
-      # ── Deploy via Git on Server ────────────────────────────────────────────
+      # ── Deploy via Git Clone ────────────────────────────────────────────────
       - name: Deploy via Git Clone (DO_HOST)
         run: |
           ssh -o StrictHostKeyChecking=accept-new ${{ secrets.DO_USER }}@${{ secrets.DO_HOST }} 'bash -s' << 'DEPLOY_SCRIPT'
@@ -61,6 +73,15 @@ jobs:
           
           cd "$DEPLOY_DIR"
           
+          # Check if Go is installed
+          if ! command -v go &> /dev/null; then
+            echo "  Installing Go 1.22..."
+            cd /tmp
+            wget -q https://go.dev/dl/go1.22.0.linux-amd64.tar.gz
+            sudo tar -C /usr/local -xzf go1.22.0.linux-amd64.tar.gz
+            export PATH=$PATH:/usr/local/go/bin
+          fi
+          
           # Build Go
           echo ""
           echo "🔨 Building Go API..."
@@ -87,7 +108,7 @@ jobs:
           # Copy .env if needed
           if [ ! -f .env ]; then
             cp .env.example .env
-            echo "  ℹ️  Created .env from .env.example - update secrets manually"
+            echo "  ℹ️  Created .env from .env.example"
           fi
           
           # Nginx
@@ -187,6 +208,7 @@ jobs:
           SERVICE_CONFIG
           
           sudo systemctl daemon-reload
+          sudo systemctl enable nvrcms-api
           
           # Start services
           echo ""
@@ -197,21 +219,21 @@ jobs:
           if sudo systemctl is-active --quiet nvrcms-api; then
             echo "  ✅ API running"
           else
-            echo "  ❌ API failed"
+            echo "  ❌ API failed to start"
             sudo journalctl -u nvrcms-api -n 20
             exit 1
           fi
           
           sudo systemctl reload nginx
-          echo "  ✅ Nginx configured"
+          echo "  ✅ Nginx reloaded"
           
           # Verify
           echo ""
           echo "✅ DEPLOYMENT COMPLETE"
           echo ""
-          echo "Services:"
-          systemctl is-active --quiet nginx && echo "  ✅ Nginx: running" || echo "  ❌ Nginx: stopped"
-          systemctl is-active --quiet nvrcms-api && echo "  ✅ API: running" || echo "  ❌ API: stopped"
+          echo "Services running:"
+          systemctl is-active --quiet nginx && echo "  ✅ Nginx" || echo "  ❌ Nginx"
+          systemctl is-active --quiet nvrcms-api && echo "  ✅ API" || echo "  ❌ API"
           
           echo ""
           echo "🌐 Application ready at:"
