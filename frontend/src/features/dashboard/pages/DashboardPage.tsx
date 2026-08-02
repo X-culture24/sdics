@@ -4,6 +4,7 @@ import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, R
 import api from '@/services/api/client.ts'
 import CitizensTable from '@/components/CitizensTable'
 import ExportButton from '@/components/ExportButton'
+import { datasetService } from '@/services/api/datasetService.ts'
 import { useState } from 'react'
 
 function KPICard({ label, value, suffix = '' }: { label: string; value: number | string; suffix?: string }) {
@@ -31,8 +32,8 @@ export default function DashboardPage() {
     queryKey: ['dataset-uploads'],
     queryFn: async () => {
       try {
-        const response = await api.get('/datasets', { params: { page: 1, page_size: 100 } })
-        return response.data?.data || []
+        const response = await datasetService.listDatasets(1, 100)
+        return response.data || []
       } catch (err) {
         console.error('Error loading dataset uploads:', err)
         return []
