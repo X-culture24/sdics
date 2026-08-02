@@ -43,12 +43,28 @@ export const campaignService = {
   },
 
   create: async (campaign: Omit<Campaign, 'id' | 'createdAt' | 'updatedAt'>): Promise<Campaign> => {
-    const { data } = await apiClient.post<any>('/campaigns', campaign);
+    // Convert camelCase to snake_case for API
+    const payload = {
+      name: campaign.name,
+      description: campaign.description,
+      start_date: campaign.startDate,
+      end_date: campaign.endDate,
+      initial_nid_count: campaign.initial_nid_count || 0,
+    };
+    const { data } = await apiClient.post<any>('/campaigns', payload);
     return convertCampaign(data);
   },
 
   update: async (id: string, campaign: Partial<Campaign>): Promise<Campaign> => {
-    const { data } = await apiClient.put<any>(`/campaigns/${id}`, campaign);
+    // Convert camelCase to snake_case for API
+    const payload: any = {};
+    if (campaign.name !== undefined) payload.name = campaign.name;
+    if (campaign.description !== undefined) payload.description = campaign.description;
+    if (campaign.startDate !== undefined) payload.start_date = campaign.startDate;
+    if (campaign.endDate !== undefined) payload.end_date = campaign.endDate;
+    if (campaign.initial_nid_count !== undefined) payload.initial_nid_count = campaign.initial_nid_count;
+    
+    const { data } = await apiClient.put<any>(`/campaigns/${id}`, payload);
     return convertCampaign(data);
   },
 
