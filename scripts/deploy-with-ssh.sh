@@ -1,12 +1,12 @@
 #!/bin/bash
 # Deploy React build and API binary using SSH
 # Usage: bash scripts/deploy-with-ssh.sh
-# Requires: SSH access to root@206.81.28.246
+# Requires: SSH access to root@sdics.tech
 
 set -e
 
-REMOTE_HOST="206.81.28.246"
-REMOTE_USER="root"
+REMOTE_HOST="${REMOTE_HOST:-sdics.tech}"
+REMOTE_USER="${REMOTE_USER:-root}"
 REMOTE_PATH="/home/lawrence/nvrcms"
 
 echo "================================================"
@@ -140,7 +140,7 @@ echo ""
 echo "📋 Deployed:"
 echo "  • API Binary: $(basename bin/nvrcms-api)"
 echo "  • React Build: frontend/dist"
-echo "  • Server: 206.81.28.246"
+echo "  • Server: $REMOTE_HOST"
 echo ""
 echo "🌐 Access application:"
 echo "  • https://sdics.tech"
@@ -148,5 +148,5 @@ echo "  • API: https://sdics.tech/api/v1"
 echo "  • Swagger: https://sdics.tech/swagger/index.html"
 echo ""
 echo "📊 Check logs:"
-echo "  ssh root@206.81.28.246 'tail -f /home/lawrence/nvrcms/logs/api.log'"
+echo "  ssh $REMOTE_USER@$REMOTE_HOST 'tail -f /home/lawrence/nvrcms/logs/api.log'"
 echo ""

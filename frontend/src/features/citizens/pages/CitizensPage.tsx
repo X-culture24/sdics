@@ -4,21 +4,45 @@ import { Box, Typography, FormControl, InputLabel, Select, MenuItem, Paper, Circ
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '@/api/axios'
 import { importService } from '@/services/api/importService'
+import { datasetService } from '@/services/api/datasetService'
 
 export default function CitizensPage() {
   const [selectedCounty, setSelectedCounty] = useState<string>('')
   const [showImportDialog, setShowImportDialog] = useState(false)
   const queryClient = useQueryClient()
 
-  // Fetch counties from backend
+  const normalizeCountyName = (value: string) =>
+    value?.toLowerCase().replace(/[-_\s]+/g, ' ').trim()
+
+  const { data: datasetUploads, isLoading: datasetUploadsLoading } = useQuery({
+    queryKey: ['dataset-uploads'],
+    queryFn: async () => {
+      try {
+        const response = await datasetService.listDatasets(1, 100)
+        return response.data || []
+      } catch (err) {
+        console.error('Error loading dataset uploads:', err)
+        return []
+      }
+    },
+  })
+
   const { data: counties, isLoading: countiesLoading } = useQuery({
     queryKey: ['admin-units', 'level-2'],
     queryFn: async () => {
       try {
         const response = await api.get('/admin-units', { params: { level: 2 } })
         const countyList = response.data?.data || []
-        console.log('Counties loaded:', countyList)
-        return countyList
+        const availableCountyNames = new Set(
+          datasetUploads
+            .map((upload: any) => normalizeCountyName(upload.county || ''))
+            .filter(Boolean)
+        )
+        return countyList.filter((county: any) =>
+          availableCountyNames.size > 0
+            ? availableCountyNames.has(normalizeCountyName(county.name || ''))
+            : true
+        )
       } catch (err) {
         console.error('Error loading counties:', err)
         return []
@@ -36,7 +60,7 @@ export default function CitizensPage() {
     },
   })
 
-  if (countiesLoading) {
+  if (countiesLoading || datasetUploadsLoading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '400px' }}>
         <CircularProgress />

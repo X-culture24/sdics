@@ -1,9 +1,10 @@
 import { Box, Grid, Card, CardContent, Typography, CircularProgress, Button, FormControl, InputLabel, Select, MenuItem, Paper } from '@mui/material'
 import { useQuery } from '@tanstack/react-query'
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
-import api from '../../../api/axios'
-import CitizensTable from '../../../components/CitizensTable'
-import ExportButton from '../../../components/ExportButton'
+import api from '@/services/api/client'
+import CitizensTable from '@/components/CitizensTable'
+import ExportButton from '@/components/ExportButton'
+import { datasetService } from '@/services/api/datasetService'
 import { useState } from 'react'
 
 function KPICard({ label, value, suffix = '' }: { label: string; value: number | string; suffix?: string }) {
@@ -24,20 +25,43 @@ function KPICard({ label, value, suffix = '' }: { label: string; value: number |
 export default function DashboardPage() {
   const [selectedCounty, setSelectedCounty] = useState<string>('')
 
-  // Fetch counties that have citizen data (from datasets)
+  const normalizeCountyName = (value: string) =>
+    value?.toLowerCase().replace(/[-_\s]+/g, ' ').trim()
+
+  const { data: datasetUploads = [] } = useQuery({
+    queryKey: ['dataset-uploads'],
+    queryFn: async () => {
+      try {
+        const response = await datasetService.listDatasets(1, 100)
+        return response.data || []
+      } catch (err) {
+        console.error('Error loading dataset uploads:', err)
+        return []
+      }
+    },
+  })
+
   const { data: counties = [] } = useQuery({
     queryKey: ['admin-units', 'level-2'],
     queryFn: async () => {
       try {
         const response = await api.get('/admin-units', { params: { level: 2 } })
         const allCounties = response.data?.data || []
-        // Filter to only counties that have citizens (from datasets)
-        const datasetCounties = [
-          'Baringo', 'Bomet', 'Elgeyo-Marakwet', 'Kajiado', 'Kericho',
-          'Nandi', 'Narok', 'Samburu', 'Uasin Gishu', 'West Pokot'
-        ]
-        return allCounties.filter((county: any) => 
-          datasetCounties.some(dc => dc.toLowerCase() === county.name.toLowerCase())
+        const uploadedCountyNames = new Set(
+          datasetUploads
+            .map((upload: any) => normalizeCountyName(upload.county || ''))
+            .filter(Boolean)
+        )
+
+        const datasetCounties = uploadedCountyNames.size > 0
+          ? Array.from(uploadedCountyNames)
+          : [
+              'Baringo', 'Bomet', 'Elgeyo-Marakwet', 'Kajiado', 'Kericho',
+              'Nandi', 'Narok', 'Samburu', 'Uasin Gishu', 'West Pokot',
+            ].map(normalizeCountyName)
+
+        return allCounties.filter((county: any) =>
+          datasetCounties.includes(normalizeCountyName(county.name || ''))
         )
       } catch (err) {
         console.error('Error loading counties:', err)
@@ -54,6 +78,33 @@ export default function DashboardPage() {
       })
       return response.data
     },
+  })
+
+  const selectedCountyName = counties.find((county: any) => county.id === selectedCounty)?.name || ''
+
+  const { data: datasetSummary, isLoading: datasetSummaryLoading } = useQuery({
+    queryKey: ['dataset-summary', selectedCounty],
+    queryFn: async () => {
+      if (!selectedCounty) {
+        return null
+      }
+
+      try {
+        console.log('DashboardPage: Fetching dataset summary for countyId:', selectedCounty)
+        const response = await api.get('/datasets/records', {
+          params: {
+            county_id: selectedCounty,
+            summary: true,
+          },
+        })
+        console.log('DashboardPage: Dataset summary response:', response.data)
+        return response.data
+      } catch (err) {
+        console.error('Error loading dataset summary:', err)
+        return null
+      }
+    },
+    enabled: !!selectedCounty,
   })
 
   const { data: trendsRaw, isLoading: trendsLoading } = useQuery({
@@ -87,7 +138,10 @@ export default function DashboardPage() {
     )
   }
 
-  const progressPercent = kpis?.initial_nid_count ? (kpis.registered_voters / kpis.initial_nid_count) * 100 : 0
+  const summaryTotal = datasetSummary?.total ?? 0
+  const summaryRegistered = datasetSummary?.registered ?? 0
+  const summaryProgress = datasetSummary?.progress_percent ?? 0
+  const progressPercent = datasetSummaryLoading ? 0 : (datasetSummary ? summaryProgress : (kpis?.adult_population ? (kpis.registered_voters / kpis.adult_population) * 100 : 0))
 
   // Format trend data
   const trends = Array.isArray(trendsRaw) ? trendsRaw.map((d: any) => ({
@@ -140,11 +194,11 @@ export default function DashboardPage() {
       {/* KPI Cards */}
       <Grid container spacing={2} sx={{ mb: 4 }}>
         <Grid item xs={12} sm={6} md={3}>
-          <KPICard label="Total Citizens" value={kpis?.initial_nid_count || 0} />
+          <KPICard label="Total Citizens" value={summaryTotal || kpis?.adult_population || 0} />
         </Grid>
 
         <Grid item xs={12} sm={6} md={3}>
-          <KPICard label="Registered" value={kpis?.registered_voters || 0} />
+          <KPICard label="Registered" value={summaryRegistered || kpis?.registered_voters || 0} />
         </Grid>
 
         <Grid item xs={12} sm={6} md={3}>
@@ -274,7 +328,7 @@ export default function DashboardPage() {
                 </Typography>
               </Box>
               <Typography variant="caption" sx={{ color: '#6B7280', display: 'block' }}>
-                {kpis?.registered_voters?.toLocaleString() || 0} of {kpis?.initial_nid_count?.toLocaleString() || 0}
+                {kpis?.registered_voters?.toLocaleString() || 0} of {kpis?.adult_population?.toLocaleString() || 0}
               </Typography>
             </CardContent>
           </Card>

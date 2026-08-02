@@ -79,7 +79,8 @@ func (h *ImportHandler) UploadFile(c *gin.Context) {
 		}
 	}
 
-	job, err := h.svc.StartFromUpload(c.Request.Context(), header.Filename, file, userID, campaignID)
+	defaultCounty := c.PostForm("county")
+	job, err := h.svc.StartFromUpload(c.Request.Context(), header.Filename, file, userID, campaignID, defaultCounty)
 	if err != nil {
 		if errors.Is(err, service.ErrInvalidFile) {
 			c.JSON(http.StatusBadRequest, gin.H{

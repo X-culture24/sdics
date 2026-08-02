@@ -83,6 +83,7 @@ func main() {
 	}()
 	auditSvc := service.NewAuditLogService(db)
 	reportSvc := service.NewReportService(db)
+	datasetSvc := service.NewDatasetService(db, adminUnitSvc, citizenSvc)
 
 	// Handlers
 	authHandler := handler.NewAuthHandler(authSvc)
@@ -90,12 +91,13 @@ func main() {
 	userHandler := handler.NewUserHandler(userSvc)
 	campaignHandler := handler.NewCampaignHandler(campaignSvc)
 	citizenHandler := handler.NewCitizenHandler(citizenSvc)
-	dashboardHandler := handler.NewDashboardHandler(dashboardSvc)
+	dashboardHandler := handler.NewDashboardHandler(dashboardSvc, adminUnitSvc)
 	importHandler := handler.NewImportHandler(importSvc, cfg.UploadDir, cfg.MaxUploadMB)
 	auditHandler := handler.NewAuditLogHandler(auditSvc)
 	reportHandler := handler.NewReportHandler(reportSvc)
 	wsHandler := handler.NewWebSocketHandler(wsManager)
 	citizenSyncHandler := handler.NewCitizenSyncHandler(service.NewCitizenSyncService(db, reportSvc, cfg.UploadDir))
+	datasetHandler := handler.NewDatasetHandler(datasetSvc, importSvc)
 
 	r := gin.Default()
 
@@ -125,20 +127,6 @@ func main() {
 	// Serve React build dist folder (SPA)
 	r.Static("/assets", "./frontend/dist/assets")
 	r.StaticFile("/index.html", "./frontend/dist/index.html")
-
-	// SPA routing - serve index.html for all non-API routes
-	r.NoRoute(func(c *gin.Context) {
-		if strings.HasPrefix(c.Request.URL.Path, "/api/") {
-			// Let API 404s through
-			c.JSON(404, gin.H{"error": "endpoint not found"})
-		} else if strings.HasPrefix(c.Request.URL.Path, "/swagger") {
-			// Let Swagger through
-			c.Next()
-		} else {
-			// Serve React SPA
-			c.File("./frontend/dist/index.html")
-		}
-	})
 
 	// Health check
 	r.GET("/health", func(c *gin.Context) {
@@ -282,9 +270,44 @@ func main() {
 		sync.GET("events", citizenSyncHandler.GetSyncEvents)
 	}
 
+	// Dataset records by county (not scoped - uses county name from query)
+	// MUST be registered BEFORE the datasets group to avoid :id parameter matching "records"
+
+	// Datasets (new dataset layer)
+	datasets := protected.Group("datasets")
+	datasets.Use(middleware.ScopeToAdminUnit(adminUnitSvc))
+	{
+		datasets.POST("upload", middleware.RequirePermission("citizens:write", adminUnitSvc), datasetHandler.UploadDataset)
+		datasets.GET("", middleware.RequirePermission("citizens:read", adminUnitSvc), datasetHandler.ListDatasets)
+		// SPECIFIC ROUTE FIRST: /datasets/records (county-based cross-upload query)
+		datasets.GET("records", middleware.RequirePermission("citizens:read", adminUnitSvc), datasetHandler.ListDatasetRecordsByCounty)
+		datasets.POST("records/register", middleware.RequirePermission("citizens:write", adminUnitSvc), datasetHandler.RegisterDatasetRecord)
+		datasets.GET(":id", middleware.RequirePermission("citizens:read", adminUnitSvc), datasetHandler.GetDataset)
+		datasets.GET(":id/records", middleware.RequirePermission("citizens:read", adminUnitSvc), datasetHandler.ListDatasetRecords)
+		datasets.GET(":id/records/:record_id", middleware.RequirePermission("citizens:read", adminUnitSvc), datasetHandler.GetDatasetRecord)
+		datasets.PUT(":id/records/:record_id", middleware.RequirePermission("citizens:write", adminUnitSvc), datasetHandler.UpdateDatasetRecord)
+		datasets.DELETE(":id/records/:record_id", middleware.RequirePermission("citizens:write", adminUnitSvc), datasetHandler.DeleteDatasetRecord)
+		datasets.GET(":id/export", middleware.RequirePermission("citizens:read", adminUnitSvc), datasetHandler.ExportDatasetToExcel)
+		datasets.GET(":id/validation-errors", middleware.RequirePermission("citizens:read", adminUnitSvc), datasetHandler.GetDatasetValidationErrors)
+	}
+
 	// WebSocket (with auth)
 	protected.GET("/ws", wsHandler.HandleWebSocket)
 	v1.GET("/ws/url", middleware.RequireAuth(authSvc), wsHandler.GetWebSocketURL)
+
+	// SPA routing - serve index.html for all non-API routes (MUST BE LAST)
+	r.NoRoute(func(c *gin.Context) {
+		if strings.HasPrefix(c.Request.URL.Path, "/api/") {
+			// Let API 404s through
+			c.JSON(404, gin.H{"error": "endpoint not found"})
+		} else if strings.HasPrefix(c.Request.URL.Path, "/swagger") {
+			// Let Swagger through
+			c.Next()
+		} else {
+			// Serve React SPA
+			c.File("./frontend/dist/index.html")
+		}
+	})
 
 	fmt.Printf("NVRCMS API starting on port %s (env: %s)\n", cfg.Port, cfg.Env)
 	if err := r.Run(":" + cfg.Port); err != nil {

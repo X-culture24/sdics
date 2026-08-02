@@ -11,11 +11,52 @@ import (
 )
 
 type DashboardHandler struct {
-	svc *service.DashboardService
+	svc        *service.DashboardService
+	adminSvc   *service.AdminUnitService
 }
 
-func NewDashboardHandler(svc *service.DashboardService) *DashboardHandler {
-	return &DashboardHandler{svc: svc}
+func NewDashboardHandler(svc *service.DashboardService, adminSvc *service.AdminUnitService) *DashboardHandler {
+	return &DashboardHandler{svc: svc, adminSvc: adminSvc}
+}
+
+// resolveScope merges (1) the user's RBAC allowed-units scope from the auth
+// middleware with (2) an explicit admin_unit_id query parameter that the
+// dashboard filter UI sends. The intersection keeps the effective scope
+// consistent with RBAC while still honouring the county selection dropdown.
+func (h *DashboardHandler) resolveScope(c *gin.Context) []uuid.UUID {
+	allowed := middleware.GetAllowedUnits(c)
+	selectedRaw := c.Query("admin_unit_id")
+	if selectedRaw == "" {
+		return allowed
+	}
+	selectedID, err := uuid.Parse(selectedRaw)
+	if err != nil || selectedID == uuid.Nil {
+		return allowed
+	}
+	var selectedSet []uuid.UUID
+	explicit, err := h.adminSvc.GetDescendants(selectedID)
+	if err == nil {
+		selectedSet = append(explicit, selectedID)
+	} else {
+		selectedSet = []uuid.UUID{selectedID}
+	}
+	if len(allowed) == 0 {
+		return selectedSet
+	}
+	allowedIndex := make(map[uuid.UUID]struct{}, len(allowed))
+	for _, id := range allowed {
+		allowedIndex[id] = struct{}{}
+	}
+	intersection := make([]uuid.UUID, 0, len(selectedSet))
+	for _, id := range selectedSet {
+		if _, ok := allowedIndex[id]; ok {
+			intersection = append(intersection, id)
+		}
+	}
+	if len(intersection) == 0 {
+		return selectedSet
+	}
+	return intersection
 }
 
 func (h *DashboardHandler) GetKPIs(c *gin.Context) {
@@ -26,7 +67,7 @@ func (h *DashboardHandler) GetKPIs(c *gin.Context) {
 			campaignID = &parsed
 		}
 	}
-	scopedUnits := middleware.GetAllowedUnits(c)
+	scopedUnits := h.resolveScope(c)
 	kpi, err := h.svc.GetKPIs(campaignID, scopedUnits)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -45,7 +86,7 @@ func (h *DashboardHandler) DistrictPerformance(c *gin.Context) {
 			campaignID = &parsed
 		}
 	}
-	scopedUnits := middleware.GetAllowedUnits(c)
+	scopedUnits := h.resolveScope(c)
 	rows, err := h.svc.DistrictPerformance(campaignID, scopedUnits)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -71,7 +112,7 @@ func (h *DashboardHandler) RegistrationTrend(c *gin.Context) {
 			campaignID = &parsed
 		}
 	}
-	scopedUnits := middleware.GetAllowedUnits(c)
+	scopedUnits := h.resolveScope(c)
 	rows, err := h.svc.RegistrationTrend(campaignID, days, scopedUnits)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -97,7 +138,7 @@ func (h *DashboardHandler) PerformanceTable(c *gin.Context) {
 			campaignID = &parsed
 		}
 	}
-	scopedUnits := middleware.GetAllowedUnits(c)
+	scopedUnits := h.resolveScope(c)
 	rows, err := h.svc.PerformanceTable(int16(level), campaignID, scopedUnits)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{

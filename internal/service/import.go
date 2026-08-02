@@ -1,6 +1,7 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -26,7 +27,7 @@ var (
 
 const (
 	ImportStatusPending   = "Pending"
-	ImportStatusRunning   = "Running"
+	ImportStatusRunning   = "Processing"
 	ImportStatusCompleted = "Completed"
 	ImportStatusFailed    = "Failed"
 	ImportSourceUpload    = "Upload"
@@ -90,7 +91,7 @@ func (s *ImportService) StartFromDatasets(ctx context.Context, uploaderID uuid.U
 	return job, nil
 }
 
-func (s *ImportService) StartFromUpload(ctx context.Context, filename string, reader io.Reader, uploaderID uuid.UUID, campaignID *uuid.UUID) (*model.ImportJob, error) {
+func (s *ImportService) StartFromUpload(ctx context.Context, filename string, reader io.Reader, uploaderID uuid.UUID, campaignID *uuid.UUID, defaultCounty string) (*model.ImportJob, error) {
 	if !strings.HasSuffix(strings.ToLower(filename), ".xlsx") && !strings.HasSuffix(strings.ToLower(filename), ".xls") {
 		return nil, ErrInvalidFile
 	}
@@ -117,7 +118,7 @@ func (s *ImportService) StartFromUpload(ctx context.Context, filename string, re
 		s.markFailed(job.ID, err.Error())
 		return nil, err
 	}
-	go s.processImportBytes(job.ID, data, uploaderID, ImportSourceUpload)
+	go s.processImportBytes(job.ID, data, uploaderID, ImportSourceUpload, defaultCounty)
 	return job, nil
 }
 
@@ -151,7 +152,7 @@ func (s *ImportService) GetJob(id uuid.UUID) (*model.ImportJob, error) {
 	return &job, nil
 }
 
-func (s *ImportService) processImportBytes(jobID uuid.UUID, data []byte, uploaderID uuid.UUID, source string) {
+func (s *ImportService) processImportBytes(jobID uuid.UUID, data []byte, uploaderID uuid.UUID, source, defaultCounty string) {
 	s.runningMu.Lock()
 	if _, ok := s.running[jobID]; ok {
 		s.runningMu.Unlock()
@@ -171,6 +172,14 @@ func (s *ImportService) processImportBytes(jobID uuid.UUID, data []byte, uploade
 	if err != nil {
 		s.markFailed(jobID, "parse error: "+err.Error())
 		return
+	}
+
+	if defaultCounty != "" {
+		for i := range rows {
+			if strings.TrimSpace(rows[i].County) == "" {
+				rows[i].County = defaultCounty
+			}
+		}
 	}
 
 	s.ingestRows(jobID, rows, uploaderID)
@@ -213,8 +222,8 @@ func (s *ImportService) ingestRows(jobID uuid.UUID, rows []citizenRow, uploaderI
 
 	unitCache := make(map[string]uuid.UUID)
 	countyCache := make(map[string]*model.AdminUnit)
+	pendingNewUnits := make(map[string]uuid.UUID)
 
-	// Pre-load existing NIDs
 	var allNIDs []string
 	for _, r := range rows {
 		allNIDs = append(allNIDs, r.NationalID)
@@ -227,10 +236,8 @@ func (s *ImportService) ingestRows(jobID uuid.UUID, rows []citizenRow, uploaderI
 		existingSet[e] = struct{}{}
 	}
 
-	// CRITICAL FIX: Process each row in its own transaction
-	// This prevents ONE bad row from aborting the entire 164,000-row import
 	for _, r := range rows {
-		// Start a new transaction for EACH row
+		pendingNewUnits = make(map[string]uuid.UUID)
 		rowTx := s.db.Begin()
 		if rowTx.Error != nil {
 			fmt.Printf("[IMPORT ERROR] Row %d: Failed to begin transaction: %v\n", r.RowNum, rowTx.Error)
@@ -255,61 +262,77 @@ func (s *ImportService) ingestRows(jobID uuid.UUID, rows []citizenRow, uploaderI
 			continue
 		}
 
-		countyID, err := s.resolveOrCreateUnit(rowTx, 2, r.County, nil, countyCache, unitCache, "KE-"+strings.ToUpper(shortName(r.County)))
+		countyName := strings.TrimSpace(r.County)
+		if countyName == "" {
+			fmt.Printf("[IMPORT SKIP] Row %d: Missing county name\n", r.RowNum)
+			rowTx.Rollback()
+			rejected++
+			s.updateJobProgress(jobID, total, inserted, rejected)
+			continue
+		}
+		countyID, err := s.resolveOrCreateUnit(rowTx, 2, countyName, nil, countyCache, unitCache, pendingNewUnits, "KE-"+strings.ToUpper(shortName(countyName)))
 		if err != nil || countyID == uuid.Nil {
-			fmt.Printf("[IMPORT SKIP] Row %d: County '%s' failed: %v\n", r.RowNum, r.County, err)
+			fmt.Printf("[IMPORT SKIP] Row %d: County '%s' failed: %v\n", r.RowNum, countyName, err)
 			rowTx.Rollback()
 			rejected++
 			s.updateJobProgress(jobID, total, inserted, rejected)
 			continue
 		}
-		districtID, err := s.resolveOrCreateUnit(rowTx, 3, r.District, &countyID, countyCache, unitCache, "")
+		districtName := strings.TrimSpace(r.District)
+		if districtName == "" {
+			districtName = countyName + " - General"
+		}
+		districtID, err := s.resolveOrCreateUnit(rowTx, 3, districtName, &countyID, countyCache, unitCache, pendingNewUnits, "")
 		if err != nil || districtID == uuid.Nil {
-			fmt.Printf("[IMPORT SKIP] Row %d: District '%s' failed: %v\n", r.RowNum, r.District, err)
+			fmt.Printf("[IMPORT SKIP] Row %d: District '%s' failed: %v\n", r.RowNum, districtName, err)
 			rowTx.Rollback()
 			rejected++
 			s.updateJobProgress(jobID, total, inserted, rejected)
 			continue
 		}
-		var divisionID *uuid.UUID
-		if strings.TrimSpace(r.Division) != "" {
-			id, err := s.resolveOrCreateUnit(rowTx, 4, r.Division, &districtID, countyCache, unitCache, "")
-			if err == nil && id != uuid.Nil {
-				divisionID = &id
-			}
+		divisionID, err := s.safeResolveOptional(rowTx, 4, r.Division, &districtID, countyCache, unitCache, pendingNewUnits)
+		if err != nil {
+			fmt.Printf("[IMPORT ERROR] Row %d: Division '%s' failed: %v\n", r.RowNum, r.Division, err)
+			rowTx.Rollback()
+			rejected++
+			s.updateJobProgress(jobID, total, inserted, rejected)
+			continue
 		}
-		var locationID *uuid.UUID
-		if strings.TrimSpace(r.Location) != "" {
-			parent := districtID
-			if divisionID != nil {
-				parent = *divisionID
-			}
-			id, err := s.resolveOrCreateUnit(rowTx, 5, r.Location, &parent, countyCache, unitCache, "")
-			if err == nil && id != uuid.Nil {
-				locationID = &id
-			}
+		locParent := districtID
+		if divisionID != nil {
+			locParent = *divisionID
 		}
-		var subLocID *uuid.UUID
-		if strings.TrimSpace(r.SubLoc) != "" {
-			parent := districtID
-			if locationID != nil {
-				parent = *locationID
-			}
-			id, err := s.resolveOrCreateUnit(rowTx, 6, r.SubLoc, &parent, countyCache, unitCache, "")
-			if err == nil && id != uuid.Nil {
-				subLocID = &id
-			}
+		locationID, err := s.safeResolveOptional(rowTx, 5, r.Location, &locParent, countyCache, unitCache, pendingNewUnits)
+		if err != nil {
+			fmt.Printf("[IMPORT ERROR] Row %d: Location '%s' failed: %v\n", r.RowNum, r.Location, err)
+			rowTx.Rollback()
+			rejected++
+			s.updateJobProgress(jobID, total, inserted, rejected)
+			continue
 		}
-		var villageID *uuid.UUID
-		if strings.TrimSpace(r.Village) != "" {
-			parent := districtID
-			if subLocID != nil {
-				parent = *subLocID
-			}
-			id, err := s.resolveOrCreateUnit(rowTx, 7, r.Village, &parent, countyCache, unitCache, "")
-			if err == nil && id != uuid.Nil {
-				villageID = &id
-			}
+		subParent := locParent
+		if locationID != nil {
+			subParent = *locationID
+		}
+		subLocID, err := s.safeResolveOptional(rowTx, 6, r.SubLoc, &subParent, countyCache, unitCache, pendingNewUnits)
+		if err != nil {
+			fmt.Printf("[IMPORT ERROR] Row %d: Sub-location '%s' failed: %v\n", r.RowNum, r.SubLoc, err)
+			rowTx.Rollback()
+			rejected++
+			s.updateJobProgress(jobID, total, inserted, rejected)
+			continue
+		}
+		vilParent := subParent
+		if subLocID != nil {
+			vilParent = *subLocID
+		}
+		villageID, err := s.safeResolveOptional(rowTx, 7, r.Village, &vilParent, countyCache, unitCache, pendingNewUnits)
+		if err != nil {
+			fmt.Printf("[IMPORT ERROR] Row %d: Village '%s' failed: %v\n", r.RowNum, r.Village, err)
+			rowTx.Rollback()
+			rejected++
+			s.updateJobProgress(jobID, total, inserted, rejected)
+			continue
 		}
 
 		gender := strings.ToUpper(r.Gender)
@@ -345,7 +368,6 @@ func (s *ImportService) ingestRows(jobID uuid.UUID, rows []citizenRow, uploaderI
 			continue
 		}
 
-		// Insert this single citizen
 		if err := rowTx.Create(&c).Error; err != nil {
 			fmt.Printf("[IMPORT ERROR] Row %d: NID=%s Name=%s Error: %v\n", r.RowNum, nid, c.FullName, err)
 			rowTx.Rollback()
@@ -354,12 +376,15 @@ func (s *ImportService) ingestRows(jobID uuid.UUID, rows []citizenRow, uploaderI
 			continue
 		}
 
-		// Commit this row's transaction
 		if err := rowTx.Commit().Error; err != nil {
 			fmt.Printf("[IMPORT ERROR] Row %d: Commit failed: %v\n", r.RowNum, err)
 			rejected++
 			s.updateJobProgress(jobID, total, inserted, rejected)
 			continue
+		}
+
+		for k, v := range pendingNewUnits {
+			unitCache[k] = v
 		}
 
 		inserted++
@@ -370,21 +395,36 @@ func (s *ImportService) ingestRows(jobID uuid.UUID, rows []citizenRow, uploaderI
 	s.markCompleted(jobID, total, inserted, rejected)
 }
 
-func (s *ImportService) resolveOrCreateUnit(tx *gorm.DB, level int16, name string, parentID *uuid.UUID, countyCache map[string]*model.AdminUnit, unitCache map[string]uuid.UUID, code string) (uuid.UUID, error) {
+func (s *ImportService) resolveOrCreateUnit(tx *gorm.DB, level int16, name string, parentID *uuid.UUID, countyCache map[string]*model.AdminUnit, unitCache map[string]uuid.UUID, pendingNewUnits map[string]uuid.UUID, code string) (uuid.UUID, error) {
 	name = strings.TrimSpace(name)
 	if name == "" {
 		return uuid.Nil, nil
 	}
-	key := fmt.Sprintf("%d:%s:%v", level, strings.ToLower(name), parentID)
+
+	var parentKeyStr string
+	var parentKeyStrVal string
+	if parentID != nil {
+		parentKeyStr = parentID.String()
+		parentKeyStrVal = parentID.String()
+	} else {
+		parentKeyStr = "ROOT"
+		parentKeyStrVal = "ROOT"
+	}
+	_ = parentKeyStrVal
+
+	key := fmt.Sprintf("%d:%s:%s", level, strings.ToLower(name), parentKeyStr)
 	if cached, ok := unitCache[key]; ok {
 		return cached, nil
+	}
+	if pending, ok := pendingNewUnits[key]; ok {
+		return pending, nil
 	}
 
 	var u model.AdminUnit
 	q := tx.Where("level = ? AND name ILIKE ?", level, name)
 	if parentID != nil {
 		q = q.Where("parent_id = ?", *parentID)
-	} else {
+	} else if level != 2 {
 		q = q.Where("parent_id IS NULL")
 	}
 	err := q.First(&u).Error
@@ -401,13 +441,30 @@ func (s *ImportService) resolveOrCreateUnit(tx *gorm.DB, level int16, name strin
 		Name:     name,
 		Level:    level,
 		ParentID: parentID,
-		Code:     code,
 	}
-	if err := tx.Create(newUnit).Error; err != nil {
+	if code != "" {
+		newUnit.Code = code
+	}
+	createQuery := tx
+	if newUnit.Code == "" {
+		createQuery = tx.Omit("code")
+	}
+	if err := createQuery.Create(newUnit).Error; err != nil {
 		return uuid.Nil, err
 	}
-	unitCache[key] = newUnit.ID
+	pendingNewUnits[key] = newUnit.ID
 	return newUnit.ID, nil
+}
+
+func (s *ImportService) safeResolveOptional(tx *gorm.DB, level int16, name string, parentID *uuid.UUID, countyCache map[string]*model.AdminUnit, unitCache map[string]uuid.UUID, pendingNewUnits map[string]uuid.UUID) (*uuid.UUID, error) {
+	if strings.TrimSpace(name) == "" {
+		return nil, nil
+	}
+	id, err := s.resolveOrCreateUnit(tx, level, name, parentID, countyCache, unitCache, pendingNewUnits, "")
+	if err != nil || id == uuid.Nil {
+		return nil, err
+	}
+	return &id, nil
 }
 
 func (s *ImportService) markRunning(jobID uuid.UUID) {
@@ -467,14 +524,9 @@ func parseExcelFile(path string) ([]citizenRow, error) {
 }
 
 func parseExcelBytes(data []byte) ([]citizenRow, error) {
-	f, err := excelize.OpenReader(strings.NewReader(string(data)))
+	f, err := excelize.OpenReader(bytes.NewReader(data))
 	if err != nil {
-		f2, err2 := excelize.OpenReader(bytesReader(data))
-		if err2 != nil {
-			return nil, err2
-		}
-		defer f2.Close()
-		return readExcelRows(f2)
+		return nil, err
 	}
 	defer f.Close()
 	return readExcelRows(f)
@@ -584,29 +636,58 @@ func detectColumns(header []string) colMap {
 	m := colMap{nid: -1, name: -1, gender: -1, phone: -1, county: -1, district: -1, division: -1, location: -1, subloc: -1, village: -1, polling: -1}
 	for i, raw := range header {
 		h := strings.ToLower(strings.TrimSpace(raw))
+		h = strings.ReplaceAll(h, "_", " ")
+		h = strings.ReplaceAll(h, "-", " ")
+		h = strings.Join(strings.Fields(h), " ")
 		switch {
-		case strings.Contains(h, "id") || strings.Contains(h, "national") || strings.Contains(h, "nid"):
-			m.nid = i
-		case strings.Contains(h, "name") && !strings.Contains(h, "polling"):
-			m.name = i
+		case strings.Contains(h, "national") || strings.Contains(h, "nid") || strings.Contains(h, "identification") || strings.Contains(h, "nin") ||
+			strings.Contains(h, "id no") || strings.Contains(h, "id number") || strings.Contains(h, "nationalid"):
+			if m.nid == -1 {
+				m.nid = i
+			}
+		case strings.Contains(h, "id"):
+			if m.nid == -1 && !strings.Contains(h, "polling") && !strings.Contains(h, "station") &&
+				!strings.Contains(h, "village") && !strings.Contains(h, "county") && !strings.Contains(h, "district") {
+				m.nid = i
+			}
+		case (strings.Contains(h, "full name") || strings.Contains(h, "fullname") || strings.Contains(h, "citizen name") || strings.Contains(h, "applicant name") || strings.Contains(h, "names")):
+			if m.name == -1 {
+				m.name = i
+			}
+		case strings.Contains(h, "name"):
+			if m.name == -1 && !strings.Contains(h, "polling") && !strings.Contains(h, "station") &&
+				!strings.Contains(h, "county") && !strings.Contains(h, "district") && !strings.Contains(h, "division") &&
+				!strings.Contains(h, "location") && !strings.Contains(h, "village") {
+				m.name = i
+			}
 		case strings.Contains(h, "gender") || strings.Contains(h, "sex"):
-			m.gender = i
-		case strings.Contains(h, "phone") || strings.Contains(h, "mobile") || strings.Contains(h, "contact"):
-			m.phone = i
+			if m.gender == -1 {
+				m.gender = i
+			}
+		case strings.Contains(h, "phone") || strings.Contains(h, "mobile") || strings.Contains(h, "contact") || strings.Contains(h, "tel") || strings.Contains(h, "telephone"):
+			if m.phone == -1 {
+				m.phone = i
+			}
 		case strings.Contains(h, "county"):
 			m.county = i
-		case strings.Contains(h, "district") || strings.Contains(h, "constituency") || strings.Contains(h, "subcounty"):
+		case strings.Contains(h, "sub county") || strings.Contains(h, "subcounty") || strings.Contains(h, "sub-county"):
 			m.district = i
+		case strings.Contains(h, "district") || strings.Contains(h, "constituency") || strings.Contains(h, "const"):
+			m.district = i
+		case strings.Contains(h, "ward"):
+			m.division = i
 		case strings.Contains(h, "division"):
 			m.division = i
-		case strings.Contains(h, "subloc") || strings.Contains(h, "sub location"):
+		case strings.Contains(h, "subloc") || strings.Contains(h, "sub location") || strings.Contains(h, "sublocation") || strings.Contains(h, "sub-location"):
 			m.subloc = i
 		case strings.Contains(h, "location"):
 			m.location = i
 		case strings.Contains(h, "village"):
 			m.village = i
-		case strings.Contains(h, "polling") || strings.Contains(h, "station"):
-			m.polling = i
+		case strings.Contains(h, "polling") || strings.Contains(h, "station") || strings.Contains(h, "polling station") || strings.Contains(h, "polling centre") || strings.Contains(h, "polling center") || strings.Contains(h, "polling centre") || strings.Contains(h, "polling center"):
+			if m.polling == -1 {
+				m.polling = i
+			}
 		}
 	}
 	if m.nid == -1 {
@@ -618,8 +699,31 @@ func detectColumns(header []string) colMap {
 	if m.gender == -1 {
 		m.gender = 2
 	}
+	if m.phone == -1 {
+		m.phone = 3
+	}
+	// Don't assume county is always the fifth column. Some dataset files omit the
+	// county column and derive county from the workbook filename instead.
+	if m.county == -1 {
+		m.county = -1
+	}
 	if m.district == -1 {
-		m.district = 4
+		m.district = 5
+	}
+	if m.division == -1 {
+		m.division = 6
+	}
+	if m.location == -1 {
+		m.location = 7
+	}
+	if m.subloc == -1 {
+		m.subloc = 8
+	}
+	if m.village == -1 {
+		m.village = 9
+	}
+	if m.polling == -1 {
+		m.polling = 10
 	}
 	return m
 }

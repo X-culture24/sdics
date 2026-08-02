@@ -1,0 +1,14 @@
+                  id                  |              upload_id               | row_number | county |   district    |      extra_data       
+--------------------------------------+--------------------------------------+------------+--------+---------------+-----------------------
+ 902082db-fa93-4476-abd2-5361811fafa1 | 5b52c607-8ca1-4589-9984-78db1b3a6d8d |          1 |        | ELANGATA WUAS | {"extra_9": "MASAI"}
+ bca84c33-864e-4d16-acd8-78238c437b2c | 5b52c607-8ca1-4589-9984-78db1b3a6d8d |          2 |        | ELANGATA WUAS | {"extra_9": "KIKUYU"}
+ 87757be7-329c-4e08-9bdc-043f3f586644 | 5b52c607-8ca1-4589-9984-78db1b3a6d8d |          3 |        | ELANGATA WUAS | {"extra_9": "MASAI"}
+ 3fccb6d9-bdc5-4a59-b057-68e9136c23e2 | 5b52c607-8ca1-4589-9984-78db1b3a6d8d |          4 |        | ELANGATA WUAS | {"extra_9": "MASAI"}
+ 63fcc103-e015-4a7f-9428-8362f75e9286 | 5b52c607-8ca1-4589-9984-78db1b3a6d8d |          5 |        | ELANGATA WUAS | {"extra_9": "MASAI"}
+ ec2f8e69-a0c4-483f-b307-5f283b7d42ab | 5b52c607-8ca1-4589-9984-78db1b3a6d8d |          6 |        | ELANGATA WUAS | {"extra_9": "MASAI"}
+ 29918cd5-9737-4456-a580-f3bca17f9cf2 | 5b52c607-8ca1-4589-9984-78db1b3a6d8d |          7 |        | ELANGATA WUAS | {"extra_9": "MASAI"}
+ 187973a0-3867-4740-ac13-1b2f35bf77b0 | 5b52c607-8ca1-4589-9984-78db1b3a6d8d |          8 |        | ELANGATA WUAS | {"extra_9": "MASAI"}
+ 443cb38f-b4c8-4be0-85a9-29355dd55e1f | 5b52c607-8ca1-4589-9984-78db1b3a6d8d |          9 |        | ELANGATA WUAS | {"extra_9": "MASAI"}
+ 59662775-cada-4ba3-803c-620fc8cf114d | 5b52c607-8ca1-4589-9984-78db1b3a6d8d |         10 |        | ELANGATA WUAS | {"extra_9": "MASAI"}
+(10 rows)
+

@@ -140,32 +140,95 @@ func RequirePermission(permission string, adminUnitSvc *service.AdminUnitService
 	}
 }
 
-// ScopeToAdminUnit injects the list of allowed admin unit IDs into context (user's unit + all descendants)
+// ScopeToAdminUnit injects the list of allowed admin unit IDs into context
+// (user's unit + all descendants) while honouring an optional admin_unit_id
+// query parameter for explicit county filtering.
 func ScopeToAdminUnit(adminUnitSvc *service.AdminUnitService) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		adminUnitID := GetAdminUnitID(c)
-		if adminUnitID == uuid.Nil {
-			c.Next()
-			return
+		allowedUnits := resolveAllowedUnits(c, adminUnitSvc)
+		if len(allowedUnits) > 0 {
+			c.Set(CtxAllowedUnits, allowedUnits)
 		}
-
-		roleName := GetRoleName(c)
-		if roleName == "System Administrator" || roleName == "National Administrator" {
-			c.Next()
-			return
-		}
-
-		descendants, err := adminUnitSvc.GetDescendants(adminUnitID)
-		if err != nil {
-			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
-				"error": gin.H{"code": "INTERNAL_ERROR", "message": "Failed to resolve admin scope"},
-			})
-			return
-		}
-
-		c.Set(CtxAllowedUnits, descendants)
 		c.Next()
 	}
+}
+
+func resolveAllowedUnits(c *gin.Context, adminUnitSvc *service.AdminUnitService) []uuid.UUID {
+	roleName := GetRoleName(c)
+	selectedID, selectedScope := parseAdminUnitQueryScope(c.Query("admin_unit_id"))
+
+	if selectedID != uuid.Nil {
+		if roleName == "System Administrator" || roleName == "National Administrator" {
+			return selectedScope
+		}
+
+		adminUnitID := GetAdminUnitID(c)
+		if adminUnitID == uuid.Nil {
+			return selectedScope
+		}
+
+		baseScope, err := adminUnitSvc.GetDescendants(adminUnitID)
+		if err != nil {
+			return selectedScope
+		}
+		baseScope = append(baseScope, adminUnitID)
+		return intersectAllowedUnits(roleName, baseScope, selectedScope)
+	}
+
+	adminUnitID := GetAdminUnitID(c)
+	if adminUnitID == uuid.Nil {
+		return nil
+	}
+	if roleName == "System Administrator" || roleName == "National Administrator" {
+		return nil
+	}
+
+	descendants, err := adminUnitSvc.GetDescendants(adminUnitID)
+	if err != nil {
+		return nil
+	}
+	return append(descendants, adminUnitID)
+}
+
+func parseAdminUnitQueryScope(raw string) (uuid.UUID, []uuid.UUID) {
+	if raw == "" {
+		return uuid.Nil, nil
+	}
+
+	selectedID, err := uuid.Parse(raw)
+	if err != nil || selectedID == uuid.Nil {
+		return uuid.Nil, nil
+	}
+
+	return selectedID, []uuid.UUID{selectedID}
+}
+
+func intersectAllowedUnits(roleName string, allowed []uuid.UUID, selected []uuid.UUID) []uuid.UUID {
+	if roleName == "System Administrator" || roleName == "National Administrator" {
+		return selected
+	}
+	if len(allowed) == 0 {
+		return selected
+	}
+	if len(selected) == 0 {
+		return allowed
+	}
+
+	allowedIndex := make(map[uuid.UUID]struct{}, len(allowed))
+	for _, id := range allowed {
+		allowedIndex[id] = struct{}{}
+	}
+
+	intersection := make([]uuid.UUID, 0, len(selected))
+	for _, id := range selected {
+		if _, ok := allowedIndex[id]; ok {
+			intersection = append(intersection, id)
+		}
+	}
+	if len(intersection) == 0 {
+		return selected
+	}
+	return intersection
 }
 
 // GetAllowedUnits extracts the allowed admin unit IDs from context

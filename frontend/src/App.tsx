@@ -12,6 +12,7 @@ import Citizens from '@/features/citizens/pages/CitizensPage';
 import Campaigns from '@/features/campaigns/pages/CampaignsPage';
 import Reports from '@/features/reports/pages/ReportsPage';
 import Settings from '@/features/settings/pages/Settings';
+import Datasets from '@/features/datasets/pages/DatasetsPage';
 
 export default function App() {
   return (
@@ -30,6 +31,7 @@ export default function App() {
             >
               <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/citizens" element={<Citizens />} />
+              <Route path="/datasets" element={<Datasets />} />
               <Route path="/campaigns" element={<Campaigns />} />
               <Route path="/reports" element={<Reports />} />
               <Route path="/settings" element={<Settings />} />

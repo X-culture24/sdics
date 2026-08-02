@@ -88,10 +88,12 @@ func (s *DashboardService) GetKPIs(activeCampaignID *uuid.UUID, scopedUnits []uu
 		}
 	}
 
-	s.db.Model(&model.DailyProgress{}).
-		Where("progress_date::date = ?", todayStr).
-		Where(s.scopeClauseProgress(scopedUnits)).
-		Select("COALESCE(SUM(registered_count), 0)").
+	q := s.db.Table("daily_progress").
+		Where("progress_date::date = ?", todayStr)
+	if len(scopedUnits) > 0 {
+		q = q.Where("admin_unit_id IN ?", scopedUnits)
+	}
+	q.Select("COALESCE(SUM(registered_count), 0)").
 		Scan(&kpi.TodaysProgress)
 
 	return kpi, nil
@@ -279,7 +281,7 @@ func (s *DashboardService) scopeClause(scopedUnits []uuid.UUID, prefix bool) (st
 
 func (s *DashboardService) scopeClauseProgress(scopedUnits []uuid.UUID) (string, []interface{}) {
 	if len(scopedUnits) == 0 {
-		return "1=1", nil
+		return "1=1", []interface{}{}
 	}
 	return "admin_unit_id IN ?", []interface{}{scopedUnits}
 }

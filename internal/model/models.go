@@ -177,6 +177,11 @@ type DailyProgress struct {
 	UpdatedAt       time.Time `json:"updated_at"`
 }
 
+// TableName specifies the table name for DailyProgress
+func (DailyProgress) TableName() string {
+	return "daily_progress"
+}
+
 // Setting stores key-value system configuration
 type Setting struct {
 	Key         string     `gorm:"primaryKey" json:"key"`
@@ -184,4 +189,100 @@ type Setting struct {
 	Description string     `json:"description"`
 	UpdatedBy   *uuid.UUID `gorm:"type:uuid" json:"updated_by,omitempty"`
 	UpdatedAt   time.Time  `json:"updated_at"`
+}
+
+// ========== DATASET LAYER (Raw Import Archive) ==========
+
+// DatasetUpload represents metadata about a single Excel file import
+type DatasetUpload struct {
+	ID               uuid.UUID `gorm:"type:uuid;primaryKey" json:"id"`
+	County           string    `gorm:"not null" json:"county"`
+	Filename         string    `gorm:"not null" json:"filename"`
+	UploadedBy       uuid.UUID `gorm:"type:uuid;not null" json:"uploaded_by"`
+	UploadDate       time.Time `gorm:"not null" json:"upload_date"`
+	Status           string    `gorm:"default:Pending" json:"status"` // Pending|Processing|Completed|Failed|Archived
+	RowCount         int       `json:"row_count"`
+	ErrorMessage     string    `json:"error_message,omitempty"`
+	ArchivedFilePath string    `json:"archived_file_path,omitempty"` // Path to original .xlsx for audit
+	CreatedAt        time.Time `json:"created_at"`
+	UpdatedAt        time.Time `json:"updated_at"`
+}
+
+// TableName specifies the table name for DatasetUpload
+func (DatasetUpload) TableName() string {
+	return "dataset_uploads"
+}
+
+// DatasetRecord represents a single row from an imported Excel file (exact copy, no normalization)
+type DatasetRecord struct {
+	ID        uuid.UUID `gorm:"type:uuid;primaryKey" json:"id"`
+	UploadID  uuid.UUID `gorm:"type:uuid;not null" json:"upload_id"`
+	RowNumber int       `gorm:"not null" json:"row_number"`
+
+	// Raw fields preserved exactly as imported
+	NationalID         string `json:"national_id,omitempty"`
+	FullName           string `json:"full_name,omitempty"`
+	Gender             string `json:"gender,omitempty"`
+	PhoneNumber        string `json:"phone_number,omitempty"`
+	County             string `json:"county,omitempty"`
+	District           string `json:"district,omitempty"`
+	Division           string `json:"division,omitempty"`
+	Location           string `json:"location,omitempty"`
+	SubLocation        string `json:"sub_location,omitempty"`
+	Village            string `json:"village,omitempty"`
+	PollingStation     string `json:"polling_station,omitempty"`
+	RegistrationStatus string `json:"registration_status,omitempty"`
+	RegistrationDate   string `json:"registration_date,omitempty"`
+
+	// Additional flexible columns (stored as JSON)
+	ExtraData map[string]interface{} `gorm:"type:jsonb;serializer:json" json:"extra_data,omitempty"`
+
+	// Edit tracking
+	IsEdited bool       `gorm:"default:false" json:"is_edited"`
+	EditedBy *uuid.UUID `gorm:"type:uuid" json:"edited_by,omitempty"`
+	EditedAt *time.Time `json:"edited_at,omitempty"`
+
+	// Sync tracking (optional one-way sync to Citizens table)
+	IsSynced        bool       `gorm:"default:false" json:"is_synced"`
+	SyncedCitizenID *uuid.UUID `gorm:"type:uuid" json:"synced_citizen_id,omitempty"`
+	SyncError       string     `json:"sync_error,omitempty"`
+
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// TableName specifies the table name for DatasetRecord
+func (DatasetRecord) TableName() string {
+	return "dataset_records"
+}
+
+// DatasetValidationError records validation issues found during import
+type DatasetValidationError struct {
+	ID            uuid.UUID `gorm:"type:uuid;primaryKey" json:"id"`
+	UploadID      uuid.UUID `gorm:"type:uuid;not null" json:"upload_id"`
+	RowNumber     int       `gorm:"not null" json:"row_number"`
+	FieldName     string    `json:"field_name,omitempty"`
+	ErrorMessage  string    `gorm:"not null" json:"error_message"`
+	ErrorSeverity string    `gorm:"default:ERROR" json:"error_severity"` // WARNING|ERROR|INFO
+	CreatedAt     time.Time `json:"created_at"`
+}
+
+// TableName specifies the table name for DatasetValidationError
+func (DatasetValidationError) TableName() string {
+	return "dataset_validation_errors"
+}
+
+// DatasetColumnMapping tracks which Excel columns map to which fields
+type DatasetColumnMapping struct {
+	ID               uuid.UUID `gorm:"type:uuid;primaryKey" json:"id"`
+	UploadID         uuid.UUID `gorm:"type:uuid;not null" json:"upload_id"`
+	SourceColumnName string    `gorm:"not null" json:"source_column_name"`
+	TargetFieldName  string    `gorm:"not null" json:"target_field_name"`
+	ColumnIndex      int       `json:"column_index"`
+	CreatedAt        time.Time `json:"created_at"`
+}
+
+// TableName specifies the table name for DatasetColumnMapping
+func (DatasetColumnMapping) TableName() string {
+	return "dataset_column_mappings"
 }

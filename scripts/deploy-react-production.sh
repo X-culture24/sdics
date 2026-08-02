@@ -7,8 +7,8 @@
 set -e
 
 # Configuration
-REMOTE_USER="root"
-REMOTE_HOST="206.81.28.246"
+REMOTE_USER="${REMOTE_USER:-root}"
+REMOTE_HOST="${REMOTE_HOST:-sdics.tech}"
 REMOTE_PATH="/home/lawrence/nvrcms"
 FRONTEND_DIST="frontend/dist"
 LOCAL_SOURCE_DIR="frontend/src"
@@ -249,6 +249,6 @@ echo "  • API: https://sdics.tech/api/v1"
 echo "  • Swagger Docs: https://sdics.tech/swagger/index.html"
 echo ""
 echo "📊 Logs:"
-echo "  • API logs: ssh root@206.81.28.246 'tail -f /home/lawrence/nvrcms/logs/api.log'"
-echo "  • Nginx logs: ssh root@206.81.28.246 'tail -f /var/log/nginx/access.log'"
+echo "  • API logs: ssh $REMOTE_USER@$REMOTE_HOST 'tail -f /home/lawrence/nvrcms/logs/api.log'"
+echo "  • Nginx logs: ssh $REMOTE_USER@$REMOTE_HOST 'tail -f /var/log/nginx/access.log'"
 echo ""

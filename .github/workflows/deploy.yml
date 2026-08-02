@@ -31,8 +31,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "20"
-          cache: "npm"
-          cache-dependency-path: "frontend/package-lock.json"
 
       - name: Install frontend dependencies
         run: npm install
@@ -42,76 +40,57 @@ jobs:
         run: npm run build
         working-directory: frontend
 
-      # ── Deploy Frontend via SSH ────────────────────────────────────────────
-      - name: Deploy React frontend
+      # ── SSH Setup ──────────────────────────────────────────────────────────
+      - name: Setup SSH Key
         run: |
-          scp -o StrictHostKeyChecking=accept-new -r frontend/dist/* root@sdics.tech:/home/nvrcms/frontend/
-          ssh -o StrictHostKeyChecking=accept-new root@sdics.tech "bash -s" << 'DEPLOY_FRONTEND'
-          #!/bin/bash
-          set -e
-          
-          REMOTE_PATH="/home/nvrcms/frontend"
-          
-          echo "📋 Setting permissions..."
-          find "$REMOTE_PATH" -type d -exec chmod 755 {} \;
-          find "$REMOTE_PATH" -type f -exec chmod 644 {} \;
-          
-          echo "🌐 Reloading Nginx..."
-          systemctl reload nginx
-          
-          echo "✅ Frontend deployed: $(find $REMOTE_PATH -type f | wc -l) files"
-          DEPLOY_FRONTEND
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H sdics.tech >> ~/.ssh/known_hosts 2>/dev/null || true
 
-      # ── Deploy API Binary ─────────────────────────────────────────────────
+      # ── Deploy React Frontend ──────────────────────────────────────────────
+      - name: Deploy React frontend
+        run: bash scripts/deploy-react-production.sh
+        env:
+          REMOTE_USER: root
+          REMOTE_HOST: sdics.tech
+
+      # ── Deploy API Binary ──────────────────────────────────────────────────
       - name: Deploy API binary
         run: |
-          ssh -o StrictHostKeyChecking=accept-new root@sdics.tech "bash -s" << 'BACKUP_API'
-          #!/bin/bash
+          scp bin/nvrcms-api root@sdics.tech:/home/lawrence/nvrcms/bin/
+          
+          ssh root@sdics.tech 'bash -s' << 'API_DEPLOY'
           set -e
-          
-          REMOTE_PATH="/home/nvrcms/bin"
-          
-          mkdir -p "$REMOTE_PATH"
-          if [ -f "$REMOTE_PATH/nvrcms-api" ]; then
-            cp "$REMOTE_PATH/nvrcms-api" "$REMOTE_PATH/nvrcms-api.backup-$(date +%s)"
-            echo "✅ API backed up"
-          fi
           
           echo "🛑 Stopping nvrcms-api service..."
           systemctl stop nvrcms-api || true
           sleep 2
-          BACKUP_API
-          
-          scp -o StrictHostKeyChecking=accept-new bin/nvrcms-api root@sdics.tech:/home/nvrcms/bin/
-          
-          ssh -o StrictHostKeyChecking=accept-new root@sdics.tech "bash -s" << 'START_API'
-          #!/bin/bash
-          set -e
           
           echo "🔧 Setting permissions..."
-          chmod 755 /home/nvrcms/bin/nvrcms-api
-          chown lawrence:lawrence /home/nvrcms/bin/nvrcms-api
+          chmod 755 /home/lawrence/nvrcms/bin/nvrcms-api
+          chown lawrence:lawrence /home/lawrence/nvrcms/bin/nvrcms-api
           
           echo "▶️  Starting nvrcms-api service..."
           systemctl start nvrcms-api
           sleep 3
           
           echo "✅ API deployed and running"
-          START_API
+          API_DEPLOY
 
       # ── Copy supporting files ──────────────────────────────────────────────
       - name: Copy datasets and migrations
         run: |
-          ssh -o StrictHostKeyChecking=accept-new root@sdics.tech "mkdir -p /home/nvrcms/migrations /home/nvrcms/datasets /home/nvrcms/scripts"
-          scp -o StrictHostKeyChecking=accept-new -r datasets/. root@sdics.tech:/home/nvrcms/datasets/
-          scp -o StrictHostKeyChecking=accept-new -r migrations/. root@sdics.tech:/home/nvrcms/migrations/
-          scp -o StrictHostKeyChecking=accept-new scripts/migrate.sh scripts/seed.sql root@sdics.tech:/home/nvrcms/scripts/
+          ssh root@sdics.tech "mkdir -p /home/lawrence/nvrcms/migrations /home/lawrence/nvrcms/datasets /home/lawrence/nvrcms/scripts"
+          scp -r datasets/. root@sdics.tech:/home/lawrence/nvrcms/datasets/
+          scp -r migrations/. root@sdics.tech:/home/lawrence/nvrcms/migrations/
+          scp scripts/migrate.sh scripts/seed.sql root@sdics.tech:/home/lawrence/nvrcms/scripts/
 
       # ── Verify deployment ──────────────────────────────────────────────────
       - name: Verify deployment
         run: |
-          ssh -o StrictHostKeyChecking=accept-new root@sdics.tech "bash -s" << 'VERIFY'
-          #!/bin/bash
+          ssh root@sdics.tech 'bash -s' << 'VERIFY'
+          set -e
           
           echo ""
           echo "================================================"
@@ -125,6 +104,7 @@ jobs:
           
           echo ""
           echo "🔗 Testing endpoints..."
+          
           if curl -s http://localhost:8080/health | grep -q '"status":"ok"'; then
             echo "  ✅ API health: OK"
           else
@@ -133,9 +113,8 @@ jobs:
           
           echo ""
           echo "📊 Frontend files:"
-          if [ -f /home/nvrcms/frontend/index.html ]; then
-            FILE_COUNT=$(find /home/nvrcms/frontend -type f | wc -l)
-            echo "  ✅ React app deployed ($FILE_COUNT files)"
+          if [ -f /home/lawrence/nvrcms/frontend/index.html ]; then
+            echo "  ✅ React app deployed ($(find /home/lawrence/nvrcms/frontend -type f | wc -l) files)"
           else
             echo "  ❌ Frontend index.html not found"
           fi

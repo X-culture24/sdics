@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Box, AppBar, Toolbar, Avatar, Menu, MenuItem, Divider, Typography, Tabs, Tab } from '@mui/material';
 import { useNavigate, Outlet, useLocation } from 'react-router-dom';
-import { Logout as LogoutIcon, Dashboard as DashboardIcon, People as CitizensIcon, Campaign as CampaignIcon, BarChart as ReportsIcon, Settings as SettingsIcon } from '@mui/icons-material';
+import { Logout as LogoutIcon, Dashboard as DashboardIcon, People as CitizensIcon, Campaign as CampaignIcon, BarChart as ReportsIcon, Settings as SettingsIcon, Storage as DatasetIcon } from '@mui/icons-material';
 import { useAuthStore } from '@/features/authentication/store/authStore';
 import { authService } from '@/services/api/authService';
 
@@ -23,6 +23,8 @@ export default function RootLayout() {
 
   const navItems = [
     { label: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
+    { label: 'Citizens', icon: <CitizensIcon />, path: '/citizens' },
+    { label: 'Datasets', icon: <DatasetIcon />, path: '/datasets' },
     { label: 'Campaigns', icon: <CampaignIcon />, path: '/campaigns' },
     { label: 'Reports', icon: <ReportsIcon />, path: '/reports' },
   ];

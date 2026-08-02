@@ -39,7 +39,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
     try {
       const scheme = window.location.protocol === 'https:' ? 'wss' : 'ws'
       // Get auth token from localStorage if available
-      const token = localStorage.getItem('authToken')
+      const token = localStorage.getItem('accessToken')
       const wsUrl = token 
         ? `${scheme}://${window.location.host}/api/v1/ws?token=${encodeURIComponent(token)}`
         : `${scheme}://${window.location.host}/api/v1/ws`
