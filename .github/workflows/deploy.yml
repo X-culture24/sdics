@@ -21,6 +21,14 @@ jobs:
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H sdics.tech >> ~/.ssh/known_hosts 2>/dev/null || true
+          # Test SSH connection
+          ssh -o StrictHostKeyChecking=accept-new root@sdics.tech 'echo "SSH connection successful"' || {
+            echo "SSH connection failed - checking key format"
+            exit 1
+          }
+          
+          # Verify key is valid
+          ssh-keygen -y -f ~/.ssh/id_rsa > /dev/null || (echo "SSH key is invalid"; exit 1)
 
       # ── Deploy via Git on Server ────────────────────────────────────────────
       - name: Deploy via Git Clone
