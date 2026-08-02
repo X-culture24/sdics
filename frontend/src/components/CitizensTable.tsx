@@ -24,9 +24,9 @@ import {
   Checkbox,
 } from '@mui/material'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { campaignService } from '@/services/api/campaignService'
-import { datasetService } from '@/services/api/datasetService'
-import type { DatasetRecord } from '@/services/api/datasetService'
+import { campaignService } from '@/services/api/campaignService.ts'
+import { datasetService } from '@/services/api/datasetService.ts'
+import type { DatasetRecord } from '@/services/api/datasetService.ts'
 import { useWebSocket, type WebSocketMessage } from '@/hooks/useWebSocket'
 import api from '@/services/api/client'
 

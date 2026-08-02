@@ -3,7 +3,7 @@ import { Box, AppBar, Toolbar, Avatar, Menu, MenuItem, Divider, Typography, Tabs
 import { useNavigate, Outlet, useLocation } from 'react-router-dom';
 import { Logout as LogoutIcon, Dashboard as DashboardIcon, People as CitizensIcon, Campaign as CampaignIcon, BarChart as ReportsIcon, Settings as SettingsIcon, Storage as DatasetIcon } from '@mui/icons-material';
 import { useAuthStore } from '@/features/authentication/store/authStore';
-import { authService } from '@/services/api/authService';
+import { authService } from '@/services/api/authService.ts';
 
 export default function RootLayout() {
   const navigate = useNavigate();

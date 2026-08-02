@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Box, Card, Typography, Button, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, CircularProgress, Chip, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Stack } from '@mui/material';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { campaignService } from '@/services/api/campaignService';
+import { campaignService } from '@/services/api/campaignService.ts';
 
 export default function CampaignsPage() {
   const [page] = useState(1);

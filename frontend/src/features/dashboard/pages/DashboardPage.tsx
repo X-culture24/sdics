@@ -1,10 +1,10 @@
 import { Box, Grid, Card, CardContent, Typography, CircularProgress, Button, FormControl, InputLabel, Select, MenuItem, Paper } from '@mui/material'
 import { useQuery } from '@tanstack/react-query'
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
-import api from '@/services/api/client'
+import api from '@/services/api/client.ts'
 import CitizensTable from '@/components/CitizensTable'
 import ExportButton from '@/components/ExportButton'
-import { datasetService } from '@/services/api/datasetService'
+import { datasetService } from '@/services/api/datasetService.ts'
 import { useState } from 'react'
 
 function KPICard({ label, value, suffix = '' }: { label: string; value: number | string; suffix?: string }) {

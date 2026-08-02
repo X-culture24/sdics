@@ -3,8 +3,8 @@ import CitizensTable from '@/components/CitizensTable'
 import { Box, Typography, FormControl, InputLabel, Select, MenuItem, Paper, CircularProgress, Alert, Button, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '@/api/axios'
-import { importService } from '@/services/api/importService'
-import { datasetService } from '@/services/api/datasetService'
+import { importService } from '@/services/api/importService.ts'
+import { datasetService } from '@/services/api/datasetService.ts'
 
 export default function CitizensPage() {
   const [selectedCounty, setSelectedCounty] = useState<string>('')

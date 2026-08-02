@@ -1,6 +1,6 @@
 import { Box, Card, Typography, Grid, CircularProgress, Alert } from '@mui/material';
 import { useQuery } from '@tanstack/react-query';
-import { dashboardService } from '@/services/api/dashboardService';
+import { dashboardService } from '@/services/api/dashboardService.ts';
 import BarChart from '@/components/charts/BarChart';
 import LineChart from '@/components/charts/LineChart';
 

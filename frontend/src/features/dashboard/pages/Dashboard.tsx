@@ -1,7 +1,7 @@
 import { Box, Grid, Card, Typography, CircularProgress, Button } from '@mui/material';
 import { useQuery } from '@tanstack/react-query';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { dashboardService } from '@/services/api/dashboardService';
+import { dashboardService } from '@/services/api/dashboardService.ts';
 import dayjs from 'dayjs';
 
 function KPICard({ label, value, suffix = '' }: { label: string; value: number | string; suffix?: string }) {

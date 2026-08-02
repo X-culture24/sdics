@@ -28,7 +28,7 @@ import {
 } from '@mui/material'
 import { Download as DownloadIcon, Edit as EditIcon, Delete as DeleteIcon } from '@mui/icons-material'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { datasetService, type DatasetRecord, type DatasetListParams } from '@/services/api/datasetService'
+import { datasetService, type DatasetRecord, type DatasetListParams } from '@/services/api/datasetService.ts'
 
 interface DatasetGridProps {
   uploadId: string

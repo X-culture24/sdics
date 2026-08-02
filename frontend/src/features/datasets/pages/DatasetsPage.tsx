@@ -32,7 +32,7 @@ import {
   Visibility as EyeIcon,
 } from '@mui/icons-material'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { datasetService, type DatasetUpload } from '@/services/api/datasetService'
+import { datasetService, type DatasetUpload } from '@/services/api/datasetService.ts'
 import DatasetGrid from '@/components/DatasetGrid'
 
 export default function DatasetsPage() {
